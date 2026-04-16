@@ -4,6 +4,7 @@ import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.vendor.Vendor;
 import com.ipjuon.backend.vendor.VendorRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -26,11 +27,17 @@ public class BankConsultationController {
     private final BankExcelExportService excelService;
     private final VendorRepository vendorRepository;
 
-    // 단지 정보 (추후 DB로 분리 가능)
-    private static final String COMPLEX_NAME      = "창원 힐스테이트 마크로엔";
-    private static final String COMPLEX_FULL_NAME = "창원 힐스테이트 마크로엔";
-    private static final String APPROVAL_NO       = "1132500000010";
-    private static final long   TOTAL_LIMIT       = 20_000_000_000L;
+    @Value("${complex.name}")
+    private String complexName;
+
+    @Value("${complex.full-name}")
+    private String complexFullName;
+
+    @Value("${complex.approval-no}")
+    private String approvalNo;
+
+    @Value("${complex.total-limit}")
+    private long totalLimit;
 
     public BankConsultationController(ConsultationRepository repository,
                                        BankExcelExportService excelService,
@@ -143,14 +150,14 @@ public class BankConsultationController {
         }
 
         byte[] data = excelService.generateExcel(
-                COMPLEX_NAME, COMPLEX_FULL_NAME,
-                APPROVAL_NO, TOTAL_LIMIT,
+                complexName, complexFullName,
+                approvalNo, totalLimit,
                 bank_name != null ? bank_name : "",
                 bankManager, bankPhone, bankFax,
                 list);
 
         String filename = URLEncoder.encode(
-                COMPLEX_NAME + "_접수리스트_" + LocalDate.now() + ".xlsx",
+                complexName + "_접수리스트_" + LocalDate.now() + ".xlsx",
                 StandardCharsets.UTF_8);
 
         return ResponseEntity.ok()
