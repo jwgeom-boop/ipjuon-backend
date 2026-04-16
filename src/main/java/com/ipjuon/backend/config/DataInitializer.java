@@ -72,8 +72,7 @@ public class DataInitializer implements CommandLineRunner {
 
     // ── 샘플 상담 데이터 초기화 ──
     private void initSampleConsultations() {
-        long bankCount = repository.findAll().stream()
-                .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
+        long bankCount = repository.findAllBankConsultations().stream()
                 .filter(r -> r.getManager() != null)
                 .count();
         if (bankCount > 0) return;

@@ -49,12 +49,12 @@ public class BankConsultationController {
             @RequestParam(required = false) String manager,
             @RequestParam(required = false) String loan_status
     ) {
-        List<ConsultationRequest> all = repository.findAll().stream()
-                .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
-                .collect(Collectors.toList());
+        // DB에서 은행 타입만 조회 (전체 로드 방지)
+        List<ConsultationRequest> all = (bank_name != null && !bank_name.isEmpty())
+                ? repository.findBankConsultationsByVendorName(bank_name)
+                : repository.findAllBankConsultations();
 
-        if (bank_name != null && !bank_name.isEmpty())
-            all = all.stream().filter(r -> bank_name.equals(r.getVendor_name())).collect(Collectors.toList());
+        // 추가 필터 (division/ownership/manager/loan_status는 DB 인덱스 미적용 → 메모리 필터 유지)
         if (division != null && !division.isEmpty())
             all = all.stream().filter(r -> division.equals(r.getDivision())).collect(Collectors.toList());
         if (ownership != null && !ownership.isEmpty())
@@ -122,10 +122,9 @@ public class BankConsultationController {
     public ResponseEntity<byte[]> downloadExcel(
             @RequestParam(required = false) String bank_name
     ) throws Exception {
-        List<ConsultationRequest> list = repository.findAll().stream()
-                .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
-                .filter(r -> bank_name == null || bank_name.isEmpty() || bank_name.equals(r.getVendor_name()))
-                .collect(Collectors.toList());
+        List<ConsultationRequest> list = (bank_name != null && !bank_name.isEmpty())
+                ? repository.findBankConsultationsByVendorName(bank_name)
+                : repository.findAllBankConsultations();
 
         // 은행 담당자/연락처/팩스 조회 (vendor_accounts 테이블)
         String bankManager = "";
@@ -164,12 +163,9 @@ public class BankConsultationController {
     // 집계 현황
     @GetMapping("/summary")
     public Map<String, Object> getSummary(@RequestParam(required = false) String bank_name) {
-        List<ConsultationRequest> all = repository.findAll().stream()
-                .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
-                .collect(Collectors.toList());
-
-        if (bank_name != null && !bank_name.isEmpty())
-            all = all.stream().filter(r -> bank_name.equals(r.getVendor_name())).collect(Collectors.toList());
+        List<ConsultationRequest> all = (bank_name != null && !bank_name.isEmpty())
+                ? repository.findBankConsultationsByVendorName(bank_name)
+                : repository.findAllBankConsultations();
 
         long totalCount  = all.stream().filter(r -> !"cancel".equals(r.getLoan_status())).count();
         long totalAmount = all.stream()
