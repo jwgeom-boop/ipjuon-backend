@@ -23,6 +23,7 @@ public class BankConsultationController {
     // 은행 접수 리스트 조회 (vendor_type이 은행/bank인 것만)
     @GetMapping("/consultations")
     public List<ConsultationRequest> getAll(
+            @RequestParam(required = false) String bank_name,
             @RequestParam(required = false) String division,
             @RequestParam(required = false) String ownership,
             @RequestParam(required = false) String manager,
@@ -31,6 +32,11 @@ public class BankConsultationController {
         List<ConsultationRequest> all = repository.findAll().stream()
                 .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
                 .collect(Collectors.toList());
+
+        // 은행별 필터 (본인 은행 데이터만)
+        if (bank_name != null && !bank_name.isEmpty()) {
+            all = all.stream().filter(r -> bank_name.equals(r.getVendor_name())).collect(Collectors.toList());
+        }
 
         if (division != null && !division.isEmpty())
             all = all.stream().filter(r -> division.equals(r.getDivision())).collect(Collectors.toList());
@@ -95,10 +101,14 @@ public class BankConsultationController {
 
     // 집계 현황
     @GetMapping("/summary")
-    public Map<String, Object> getSummary() {
+    public Map<String, Object> getSummary(@RequestParam(required = false) String bank_name) {
         List<ConsultationRequest> all = repository.findAll().stream()
                 .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
                 .collect(Collectors.toList());
+
+        if (bank_name != null && !bank_name.isEmpty()) {
+            all = all.stream().filter(r -> bank_name.equals(r.getVendor_name())).collect(Collectors.toList());
+        }
 
         long totalCount = all.stream().filter(r -> !"cancel".equals(r.getLoan_status())).count();
         long totalAmount = all.stream()
