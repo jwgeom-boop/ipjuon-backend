@@ -2,6 +2,8 @@ package com.ipjuon.backend.bank;
 
 import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
+import com.ipjuon.backend.vendor.Vendor;
+import com.ipjuon.backend.vendor.VendorRepository;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,14 +24,23 @@ public class BankConsultationController {
 
     private final ConsultationRepository repository;
     private final BankExcelExportService excelService;
+    private final VendorRepository vendorRepository;
+
+    // 단지 정보 (추후 DB로 분리 가능)
+    private static final String COMPLEX_NAME      = "창원 힐스테이트 마크로엔";
+    private static final String COMPLEX_FULL_NAME = "창원 힐스테이트 마크로엔";
+    private static final String APPROVAL_NO       = "1132500000010";
+    private static final long   TOTAL_LIMIT       = 20_000_000_000L;
 
     public BankConsultationController(ConsultationRepository repository,
-                                       BankExcelExportService excelService) {
+                                       BankExcelExportService excelService,
+                                       VendorRepository vendorRepository) {
         this.repository = repository;
         this.excelService = excelService;
+        this.vendorRepository = vendorRepository;
     }
 
-    // 은행 접수 리스트 조회 (vendor_type이 은행/bank인 것만)
+    // 은행 접수 리스트 조회
     @GetMapping("/consultations")
     public List<ConsultationRequest> getAll(
             @RequestParam(required = false) String bank_name,
@@ -42,11 +53,8 @@ public class BankConsultationController {
                 .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
                 .collect(Collectors.toList());
 
-        // 은행별 필터 (본인 은행 데이터만)
-        if (bank_name != null && !bank_name.isEmpty()) {
+        if (bank_name != null && !bank_name.isEmpty())
             all = all.stream().filter(r -> bank_name.equals(r.getVendor_name())).collect(Collectors.toList());
-        }
-
         if (division != null && !division.isEmpty())
             all = all.stream().filter(r -> division.equals(r.getDivision())).collect(Collectors.toList());
         if (ownership != null && !ownership.isEmpty())
@@ -119,11 +127,32 @@ public class BankConsultationController {
                 .filter(r -> bank_name == null || bank_name.isEmpty() || bank_name.equals(r.getVendor_name()))
                 .collect(Collectors.toList());
 
-        String complexName = "창원 힐스테이트 마크로엔";
-        byte[] data = excelService.generateExcel(complexName, "1132500000010", 20_000_000_000L, list);
+        // 은행 담당자/연락처/팩스 조회 (vendor_accounts 테이블)
+        String bankManager = "";
+        String bankPhone   = "";
+        String bankFax     = "";
+        if (bank_name != null && !bank_name.isEmpty()) {
+            vendorRepository.findByVendorName(bank_name).ifPresent(v -> {
+                // 람다 내에서 변수 할당이 안 되므로 배열 사용
+            });
+            Vendor vendor = vendorRepository.findByVendorName(bank_name).orElse(null);
+            if (vendor != null) {
+                bankManager = vendor.getBankManager() != null ? vendor.getBankManager() : "";
+                bankPhone   = vendor.getPhone()       != null ? vendor.getPhone()       : "";
+                bankFax     = vendor.getFax()         != null ? vendor.getFax()         : "";
+            }
+        }
+
+        byte[] data = excelService.generateExcel(
+                COMPLEX_NAME, COMPLEX_FULL_NAME,
+                APPROVAL_NO, TOTAL_LIMIT,
+                bank_name != null ? bank_name : "",
+                bankManager, bankPhone, bankFax,
+                list);
 
         String filename = URLEncoder.encode(
-                complexName + "_접수리스트_" + LocalDate.now() + ".xlsx", StandardCharsets.UTF_8);
+                COMPLEX_NAME + "_접수리스트_" + LocalDate.now() + ".xlsx",
+                StandardCharsets.UTF_8);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
@@ -139,37 +168,32 @@ public class BankConsultationController {
                 .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
                 .collect(Collectors.toList());
 
-        if (bank_name != null && !bank_name.isEmpty()) {
+        if (bank_name != null && !bank_name.isEmpty())
             all = all.stream().filter(r -> bank_name.equals(r.getVendor_name())).collect(Collectors.toList());
-        }
 
-        long totalCount = all.stream().filter(r -> !"cancel".equals(r.getLoan_status())).count();
+        long totalCount  = all.stream().filter(r -> !"cancel".equals(r.getLoan_status())).count();
         long totalAmount = all.stream()
                 .filter(r -> !"cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
                 .mapToLong(ConsultationRequest::getLoan_amount).sum();
-
-        long cancelCount = all.stream().filter(r -> "cancel".equals(r.getLoan_status())).count();
+        long cancelCount  = all.stream().filter(r -> "cancel".equals(r.getLoan_status())).count();
         long cancelAmount = all.stream()
                 .filter(r -> "cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
                 .mapToLong(ConsultationRequest::getLoan_amount).sum();
-
-        long doneCount = all.stream().filter(r -> "done".equals(r.getLoan_status())).count();
-        long waitCount = all.stream().filter(r -> r.getLoan_status() == null || "wait".equals(r.getLoan_status())).count();
-
+        long doneCount  = all.stream().filter(r -> "done".equals(r.getLoan_status())).count();
+        long waitCount  = all.stream().filter(r -> r.getLoan_status() == null || "wait".equals(r.getLoan_status())).count();
         long todayCount = all.stream().filter(r -> {
             if (r.getCreatedAt() == null) return false;
-            java.time.LocalDate today = java.time.LocalDate.now();
-            return r.getCreatedAt().toLocalDate().equals(today);
+            return r.getCreatedAt().toLocalDate().equals(LocalDate.now());
         }).count();
 
         return Map.of(
-                "total_count", totalCount,
+                "total_count",  totalCount,
                 "total_amount", totalAmount,
                 "cancel_count", cancelCount,
-                "cancel_amount", cancelAmount,
-                "done_count", doneCount,
-                "wait_count", waitCount,
-                "today_count", todayCount
+                "cancel_amount",cancelAmount,
+                "done_count",   doneCount,
+                "wait_count",   waitCount,
+                "today_count",  todayCount
         );
     }
 }

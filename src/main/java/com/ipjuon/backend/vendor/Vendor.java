@@ -24,6 +24,11 @@ public class Vendor {
 
     private String password;
     private String phone;
+    private String fax;
+
+    @Column(name = "bank_manager")
+    private String bankManager;
+
     private String status = "active";
 
     @CreationTimestamp
@@ -41,6 +46,10 @@ public class Vendor {
     public void setPassword(String password) { this.password = password; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    public String getFax() { return fax; }
+    public void setFax(String fax) { this.fax = fax; }
+    public String getBankManager() { return bankManager; }
+    public void setBankManager(String bankManager) { this.bankManager = bankManager; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public OffsetDateTime getCreatedAt() { return createdAt; }

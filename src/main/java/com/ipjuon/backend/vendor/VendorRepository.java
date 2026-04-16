@@ -9,4 +9,5 @@ public interface VendorRepository extends JpaRepository<Vendor, UUID> {
     List<Vendor> findAllByOrderByCreatedAtDesc();
     Optional<Vendor> findByLoginId(String loginId);
     boolean existsByLoginId(String loginId);
+    Optional<Vendor> findByVendorName(String vendorName);
 }
