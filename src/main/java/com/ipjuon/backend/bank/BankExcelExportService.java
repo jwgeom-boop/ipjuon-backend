@@ -27,6 +27,7 @@ public class BankExcelExportService {
             // ── 공통 스타일 ──
             XSSFCellStyle centerStyle = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null);
             XSSFCellStyle leftStyle   = baseStyle(wb, HorizontalAlignment.LEFT,   THIN, THIN, THIN, THIN, null);
+            leftStyle.setWrapText(true); // B열(불비/특이사항)은 긴 텍스트이므로 줄바꿈 허용
             XSSFCellStyle headerStyle = headerStyle(wb);
             XSSFCellStyle greenStyle  = colorStyle(wb, "FF92D050", true);
             XSSFCellStyle peachStyle  = colorStyle(wb, "FFF3C6BF", true);
@@ -70,14 +71,14 @@ public class BankExcelExportService {
     //  스타일 팩토리
     // ══════════════════════════════════════════════
 
-    /** hexARGB: 8자리 ARGB (예: "FF92D050") */
+    /** hexARGB: 8자리 ARGB (예: "FF92D050") — 데이터 셀용, wrapText=false */
     private XSSFCellStyle baseStyle(XSSFWorkbook wb, HorizontalAlignment align,
                                      BorderStyle top, BorderStyle bottom,
                                      BorderStyle left, BorderStyle right, String hexARGB) {
         XSSFCellStyle s = wb.createCellStyle();
         s.setAlignment(align);
         s.setVerticalAlignment(VerticalAlignment.CENTER);
-        s.setWrapText(true);
+        s.setWrapText(false); // 데이터 셀은 줄바꿈 금지
         s.setBorderTop(top); s.setBorderBottom(bottom);
         s.setBorderLeft(left); s.setBorderRight(right);
         if (hexARGB != null) setFill(s, hexARGB);
@@ -86,24 +87,28 @@ public class BankExcelExportService {
 
     private XSSFCellStyle headerStyle(XSSFWorkbook wb) {
         XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, "FFD9E1F2");
+        s.setWrapText(true); // 헤더는 줄바꿈 유지 ("접수일\n(취소일)" 등)
         Font f = wb.createFont(); f.setBold(true); s.setFont(f);
         return s;
     }
 
     private XSSFCellStyle colorStyle(XSSFWorkbook wb, String hexARGB, boolean bold) {
         XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, hexARGB);
+        s.setWrapText(true); // 타이틀 셀은 줄바꿈 유지
         if (bold) { Font f = wb.createFont(); f.setBold(true); s.setFont(f); }
         return s;
     }
 
     private XSSFCellStyle dateStyle(XSSFWorkbook wb) {
         XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null);
+        // wrapText=false 유지 (baseStyle 기본값)
         s.setDataFormat(wb.createDataFormat().getFormat("yyyy-mm-dd"));
         return s;
     }
 
     private XSSFCellStyle numberStyle(XSSFWorkbook wb) {
         XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null);
+        // wrapText=false 유지 (baseStyle 기본값)
         s.setDataFormat(wb.createDataFormat().getFormat("#,##0"));
         return s;
     }
@@ -139,7 +144,7 @@ public class BankExcelExportService {
     // ══════════════════════════════════════════════
 
     private void setColumnWidths(XSSFSheet sheet) {
-        double[] widths = {5.4140625, 30, 6, 8.4140625, 6, 6, 10, 18, 8, 8, 16,
+        double[] widths = {5.4140625, 30, 8, 8.4140625, 6, 6, 10, 18, 8, 8, 16,
                 10, 15, 10, 10, 7, 8, 7, 7, 7,
                 10, 18, 16, 17.25, 18, 18, 18, 21.58203125};
         for (int i = 0; i < widths.length; i++) sheet.setColumnWidth(i, (int)(widths[i] * 256));
