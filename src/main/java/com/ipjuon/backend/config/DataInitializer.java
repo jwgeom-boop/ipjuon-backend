@@ -5,6 +5,7 @@ import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.vendor.Vendor;
 import com.ipjuon.backend.vendor.VendorRepository;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
@@ -14,10 +15,14 @@ public class DataInitializer implements CommandLineRunner {
 
     private final ConsultationRepository repository;
     private final VendorRepository vendorRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
 
-    public DataInitializer(ConsultationRepository repository, VendorRepository vendorRepository) {
+    public DataInitializer(ConsultationRepository repository,
+                           VendorRepository vendorRepository,
+                           BCryptPasswordEncoder passwordEncoder) {
         this.repository = repository;
         this.vendorRepository = vendorRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -42,14 +47,24 @@ public class DataInitializer implements CommandLineRunner {
 
         for (String[] b : banks) {
             if (!vendorRepository.existsByLoginId(b[0])) {
+                // 신규 계정: BCrypt 해싱 후 저장
                 Vendor v = new Vendor();
                 v.setLoginId(b[0]);
-                v.setPassword(b[1]);
+                v.setPassword(passwordEncoder.encode(b[1]));
                 v.setVendorName(b[2]);
                 v.setVendorType("은행");
                 v.setPhone(b[3]);
                 v.setStatus("active");
                 vendorRepository.save(v);
+            } else {
+                // 기존 계정: 평문 저장된 경우 BCrypt로 마이그레이션
+                vendorRepository.findByLoginId(b[0]).ifPresent(v -> {
+                    if (!v.getPassword().startsWith("$2a$")) {
+                        v.setPassword(passwordEncoder.encode(b[1]));
+                        vendorRepository.save(v);
+                        System.out.println("🔐 비밀번호 암호화 마이그레이션: " + b[0]);
+                    }
+                });
             }
         }
         System.out.println("✅ 은행 계정 초기화 완료");

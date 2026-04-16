@@ -3,6 +3,7 @@ package com.ipjuon.backend.auth;
 import com.ipjuon.backend.vendor.Vendor;
 import com.ipjuon.backend.vendor.VendorRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -20,9 +21,12 @@ public class AuthController {
     private String adminPassword;
 
     private final VendorRepository vendorRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
 
-    public AuthController(VendorRepository vendorRepository) {
+    public AuthController(VendorRepository vendorRepository,
+                          BCryptPasswordEncoder passwordEncoder) {
         this.vendorRepository = vendorRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PostMapping("/login")
@@ -40,7 +44,7 @@ public class AuthController {
         if (vendorOpt.isPresent()) {
             Vendor vendor = vendorOpt.get();
             if ("은행".equals(vendor.getVendorType())
-                    && password.equals(vendor.getPassword())
+                    && passwordEncoder.matches(password, vendor.getPassword())
                     && "active".equals(vendor.getStatus())) {
                 return Map.of(
                     "success", true,
