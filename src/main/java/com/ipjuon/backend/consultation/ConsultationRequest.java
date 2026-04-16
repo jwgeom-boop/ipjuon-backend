@@ -39,6 +39,7 @@ public class ConsultationRequest {
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
     // 은행 상담사 입력 필드
+    private String resident_no;       // 주민등록번호 (채무자)
     private String manager;           // 담당
     private String transfer_date;     // 전매일
     private String division;          // 구분 (조합/일반)
@@ -109,6 +110,8 @@ public class ConsultationRequest {
     public void setNotes(String v) { this.notes = v; }
 
     // Getters and Setters - 은행 상담사 필드
+    public String getResident_no() { return resident_no; }
+    public void setResident_no(String v) { this.resident_no = v; }
     public String getManager() { return manager; }
     public void setManager(String v) { this.manager = v; }
     public String getTransfer_date() { return transfer_date; }

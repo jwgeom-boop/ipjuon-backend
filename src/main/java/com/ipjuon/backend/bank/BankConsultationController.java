@@ -2,8 +2,14 @@ package com.ipjuon.backend.bank;
 
 import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -15,9 +21,12 @@ import java.util.stream.Collectors;
 public class BankConsultationController {
 
     private final ConsultationRepository repository;
+    private final BankExcelExportService excelService;
 
-    public BankConsultationController(ConsultationRepository repository) {
+    public BankConsultationController(ConsultationRepository repository,
+                                       BankExcelExportService excelService) {
         this.repository = repository;
+        this.excelService = excelService;
     }
 
     // 은행 접수 리스트 조회 (vendor_type이 은행/bank인 것만)
@@ -97,6 +106,29 @@ public class BankConsultationController {
         ConsultationRequest existing = repository.findById(id).orElseThrow();
         if (body.get("loan_status") != null) existing.setLoan_status(body.get("loan_status"));
         return repository.save(existing);
+    }
+
+    // 엑셀 다운로드
+    @GetMapping("/consultations/excel")
+    public ResponseEntity<byte[]> downloadExcel(
+            @RequestParam(required = false) String bank_name
+    ) throws Exception {
+        List<ConsultationRequest> list = repository.findAll().stream()
+                .filter(r -> "은행".equals(r.getVendor_type()) || "bank".equals(r.getVendor_type()))
+                .filter(r -> bank_name == null || bank_name.isEmpty() || bank_name.equals(r.getVendor_name()))
+                .collect(Collectors.toList());
+
+        String complexName = "창원 힐스테이트 마크로엔";
+        byte[] data = excelService.generateExcel(complexName, "1132500000010", 20_000_000_000L, list);
+
+        String filename = URLEncoder.encode(
+                complexName + "_접수리스트_" + LocalDate.now() + ".xlsx", StandardCharsets.UTF_8);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(data);
     }
 
     // 집계 현황
