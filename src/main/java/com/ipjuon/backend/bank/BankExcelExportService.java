@@ -28,15 +28,15 @@ public class BankExcelExportService {
             XSSFCellStyle centerStyle  = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null);
             XSSFCellStyle leftStyle    = baseStyle(wb, HorizontalAlignment.LEFT,   THIN, THIN, THIN, THIN, null);
             XSSFCellStyle headerStyle  = headerStyle(wb);
-            XSSFCellStyle greenStyle   = colorStyle(wb, "92D050", true);
-            XSSFCellStyle peachStyle   = colorStyle(wb, "F3C6BF", true);
+            XSSFCellStyle greenStyle   = colorStyle(wb, "FF92D050", true);
+            XSSFCellStyle peachStyle   = colorStyle(wb, "FFF3C6BF", true);
             XSSFCellStyle dateStyle    = dateStyle(wb);
             XSSFCellStyle numberStyle  = numberStyle(wb);
 
             // ── 접수일 시트 ──
             XSSFSheet sheet = wb.createSheet("접수일");
             setColumnWidths(sheet);
-            createTitleRows(sheet, complexName, greenStyle, peachStyle);
+            createTitleRows(sheet, complexName, greenStyle, peachStyle, wb);
             createHeaderRow(sheet, headerStyle);
 
             int rowIdx = 4;
@@ -48,6 +48,11 @@ public class BankExcelExportService {
             // ── 총합 시트 ──
             createSummarySheet(wb, approvalNo, totalLimit);
 
+            // ── 누락 시트 3개 ──
+            createDailyReceiptSheet(wb);
+            createDailyExecutionSheet(wb);
+            createRepaymentSheet(wb);
+
             wb.write(out);
             return out.toByteArray();
         }
@@ -57,10 +62,11 @@ public class BankExcelExportService {
     //  스타일 팩토리
     // ──────────────────────────────────────────
 
+    /** hexARGB: 8자리 (AARRGGBB), 예: "FF92D050" */
     private XSSFCellStyle baseStyle(XSSFWorkbook wb, HorizontalAlignment align,
                                      BorderStyle top, BorderStyle bottom,
                                      BorderStyle left, BorderStyle right,
-                                     String hexRGB) {
+                                     String hexARGB) {
         XSSFCellStyle s = wb.createCellStyle();
         s.setAlignment(align);
         s.setVerticalAlignment(VerticalAlignment.CENTER);
@@ -69,19 +75,19 @@ public class BankExcelExportService {
         s.setBorderBottom(bottom);
         s.setBorderLeft(left);
         s.setBorderRight(right);
-        if (hexRGB != null) setFill(s, hexRGB);
+        if (hexARGB != null) setFill(s, hexARGB);
         return s;
     }
 
     private XSSFCellStyle headerStyle(XSSFWorkbook wb) {
-        XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, "D9E1F2");
+        XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, "FFD9E1F2");
         Font f = wb.createFont(); f.setBold(true);
         s.setFont(f);
         return s;
     }
 
-    private XSSFCellStyle colorStyle(XSSFWorkbook wb, String hexRGB, boolean bold) {
-        XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, hexRGB);
+    private XSSFCellStyle colorStyle(XSSFWorkbook wb, String hexARGB, boolean bold) {
+        XSSFCellStyle s = baseStyle(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, hexARGB);
         if (bold) { Font f = wb.createFont(); f.setBold(true); s.setFont(f); }
         return s;
     }
@@ -98,26 +104,28 @@ public class BankExcelExportService {
         return s;
     }
 
-    private void setFill(XSSFCellStyle s, String hexRGB) {
-        byte[] rgb = new byte[]{
-            (byte) Integer.parseInt(hexRGB.substring(0, 2), 16),
-            (byte) Integer.parseInt(hexRGB.substring(2, 4), 16),
-            (byte) Integer.parseInt(hexRGB.substring(4, 6), 16)
+    /** hexARGB: 8자리 ARGB 문자열 (예: "FF92D050") */
+    private void setFill(XSSFCellStyle s, String hexARGB) {
+        byte[] argb = new byte[]{
+            (byte) Integer.parseInt(hexARGB.substring(0, 2), 16),  // Alpha
+            (byte) Integer.parseInt(hexARGB.substring(2, 4), 16),  // R
+            (byte) Integer.parseInt(hexARGB.substring(4, 6), 16),  // G
+            (byte) Integer.parseInt(hexARGB.substring(6, 8), 16)   // B
         };
-        s.setFillForegroundColor(new XSSFColor(rgb, null));
+        s.setFillForegroundColor(new XSSFColor(argb, null));
         s.setFillPattern(FillPatternType.SOLID_FOREGROUND);
     }
 
     private XSSFCellStyle make(XSSFWorkbook wb, HorizontalAlignment align,
                                 BorderStyle t, BorderStyle b, BorderStyle l, BorderStyle r,
-                                String hex, boolean bold, String numFmt) {
+                                String hexARGB, boolean bold, String numFmt) {
         XSSFCellStyle s = wb.createCellStyle();
         s.setAlignment(align);
         s.setVerticalAlignment(VerticalAlignment.CENTER);
         s.setWrapText(true);
         s.setBorderTop(t); s.setBorderBottom(b);
         s.setBorderLeft(l); s.setBorderRight(r);
-        if (hex != null) setFill(s, hex);
+        if (hexARGB != null) setFill(s, hexARGB);
         if (bold) { Font f = wb.createFont(); f.setBold(true); s.setFont(f); }
         if (numFmt != null) s.setDataFormat(wb.createDataFormat().getFormat(numFmt));
         return s;
@@ -128,14 +136,17 @@ public class BankExcelExportService {
     // ──────────────────────────────────────────
 
     private void setColumnWidths(XSSFSheet sheet) {
-        int[] widths = {5, 30, 6, 8, 6, 6, 10, 18, 8, 8, 16,
+        // 원본 기준 정밀 너비
+        double[] widths = {5.4140625, 30, 6, 8.4140625, 6, 6, 10, 18, 8, 8, 16,
                 10, 15, 10, 10, 7, 8, 7, 7, 7,
-                10, 18, 16, 17, 18, 18, 18, 22};
-        for (int i = 0; i < widths.length; i++) sheet.setColumnWidth(i, widths[i] * 256);
+                10, 18, 16, 17.25, 18, 18, 18, 21.58203125};
+        for (int i = 0; i < widths.length; i++) sheet.setColumnWidth(i, (int)(widths[i] * 256));
     }
 
     private void createTitleRows(XSSFSheet sheet, String complexName,
-                                  XSSFCellStyle greenStyle, XSSFCellStyle peachStyle) {
+                                  XSSFCellStyle greenStyle, XSSFCellStyle peachStyle,
+                                  XSSFWorkbook wb) {
+        // row1 (index 0): 제목
         sheet.addMergedRegion(new CellRangeAddress(0, 1, 0, 7));
         Row r1 = sheet.createRow(0);
         r1.setHeightInPoints(17.25f);
@@ -143,17 +154,36 @@ public class BankExcelExportService {
         c.setCellValue(complexName + " 접수리스트");
         c.setCellStyle(greenStyle);
 
+        // J1:K1 = 모집공고일
         sheet.addMergedRegion(new CellRangeAddress(0, 1, 9, 10));
         Cell m = r1.createCell(9);
         m.setCellValue("모집공고일\n2022.07.29");
         m.setCellStyle(greenStyle);
 
+        // L1:M1 = 관리처분인가 (공백으로 간격 - 원본과 동일)
         sheet.addMergedRegion(new CellRangeAddress(0, 1, 11, 12));
         Cell mg = r1.createCell(11);
-        mg.setCellValue("관리처분인가\n2021.01.29");
+        mg.setCellValue("관리처분인가                  2021.01.29");
         mg.setCellStyle(peachStyle);
 
+        // Z1 (col 25) = 조합계좌, AA1 (col 26) = 일반계좌
+        XSSFCellStyle centerNB = wb.createCellStyle();
+        centerNB.setAlignment(HorizontalAlignment.CENTER);
+        centerNB.setVerticalAlignment(VerticalAlignment.CENTER);
+
+        Cell z1 = r1.createCell(25);
+        z1.setCellValue("조합계좌");
+        z1.setCellStyle(centerNB);
+
+        Cell aa1 = r1.createCell(26);
+        aa1.setCellValue("일반계좌");
+        aa1.setCellStyle(centerNB);
+
+        // row2 (index 1)
         sheet.createRow(1).setHeightInPoints(36f);
+
+        // row3 (index 2): 원본 높이 18.65pt
+        sheet.createRow(2).setHeightInPoints(18.65f);
     }
 
     private void createHeaderRow(XSSFSheet sheet, XSSFCellStyle headerStyle) {
@@ -182,7 +212,7 @@ public class BankExcelExportService {
         row.setHeightInPoints(36f);
 
         setCell(row, 0,  String.valueOf(seq),          center);
-        setCell(row, 1,  r.getSpecial_notes(),         left);
+        setCell(row, 1,  r.getSpecial_notes(),         center); // 원본은 align 미지정(기본)
         setCell(row, 2,  r.getManager(),               center);
         setCell(row, 3,  r.getTransfer_date(),         center);
         setCell(row, 4,  r.getDivision(),              center);
@@ -236,21 +266,21 @@ public class BankExcelExportService {
     private void createSummarySheet(XSSFWorkbook wb, String approvalNo, long totalLimit) {
         XSSFSheet ws = wb.createSheet("총합");
 
-        // 컬럼 너비
-        ws.setColumnWidth(0, (int)(2.7  * 256));
-        ws.setColumnWidth(1, (int)(14.7 * 256));
-        ws.setColumnWidth(2, (int)(8.0  * 256));
-        ws.setColumnWidth(3, (int)(10.7 * 256));
-        ws.setColumnWidth(4, (int)(20.7 * 256));
-        ws.setColumnWidth(5, (int)(3.0  * 256));
-        ws.setColumnWidth(6, (int)(14.7 * 256));
-        ws.setColumnWidth(7, (int)(10.7 * 256));
-        ws.setColumnWidth(8, (int)(22.5 * 256));
-        ws.setColumnWidth(9, (int)(2.3  * 256));
+        // 컬럼 너비 (원본 기준 정밀값)
+        ws.setColumnWidth(0, (int)(2.6640625  * 256));
+        ws.setColumnWidth(1, (int)(14.6640625 * 256));
+        ws.setColumnWidth(2, (int)(8.0        * 256));
+        ws.setColumnWidth(3, (int)(10.6640625 * 256));
+        ws.setColumnWidth(4, (int)(20.6640625 * 256));
+        ws.setColumnWidth(5, (int)(3.0        * 256));
+        ws.setColumnWidth(6, (int)(14.6640625 * 256));
+        ws.setColumnWidth(7, (int)(10.6640625 * 256));
+        ws.setColumnWidth(8, (int)(22.5       * 256));
+        ws.setColumnWidth(9, (int)(2.33203125 * 256));
 
         Font boldFont = wb.createFont(); boldFont.setBold(true);
 
-        // 공통 스타일 (경계 없음)
+        // 경계 없는 공통 스타일
         XSSFCellStyle centerNB = wb.createCellStyle();
         centerNB.setAlignment(HorizontalAlignment.CENTER);
         centerNB.setVerticalAlignment(VerticalAlignment.CENTER);
@@ -259,30 +289,30 @@ public class BankExcelExportService {
         leftNB.setAlignment(HorizontalAlignment.LEFT);
         leftNB.setVerticalAlignment(VerticalAlignment.CENTER);
 
-        // 헤더 스타일 (medium 테두리 + 연파랑)
-        XSSFCellStyle hdrBLMR   = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, MEDIUM, THIN,   "D9E1F2", true, null);
-        XSSFCellStyle hdrMid    = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, NONE,   THIN,   "D9E1F2", true, null);
-        XSSFCellStyle hdrLthin  = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, THIN,   THIN,   "D9E1F2", true, null);
-        XSSFCellStyle hdrRight  = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, NONE,   MEDIUM, "D9E1F2", true, null);
-        XSSFCellStyle hdrRLthin = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, THIN,   MEDIUM, "D9E1F2", true, null);
+        // 헤더 스타일 (medium 테두리 + 연파랑 FF알파)
+        XSSFCellStyle hdrBLMR   = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, MEDIUM, THIN,   "FFD9E1F2", true, null);
+        XSSFCellStyle hdrMid    = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, NONE,   THIN,   "FFD9E1F2", true, null);
+        XSSFCellStyle hdrLthin  = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, THIN,   THIN,   "FFD9E1F2", true, null);
+        XSSFCellStyle hdrRight  = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, NONE,   MEDIUM, "FFD9E1F2", true, null);
+        XSSFCellStyle hdrRLthin = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, THIN,   MEDIUM, "FFD9E1F2", true, null);
 
         // 데이터 스타일 (dashed + 연파랑)
-        XSSFCellStyle dataBLMR  = make(wb, HorizontalAlignment.CENTER, DASHED, DASHED, MEDIUM, THIN,   "D9E1F2", false, null);
-        XSSFCellStyle dataMid   = make(wb, HorizontalAlignment.RIGHT,  DASHED, DASHED, NONE,   THIN,   "D9E1F2", false, null);
-        XSSFCellStyle dataLthin = make(wb, HorizontalAlignment.RIGHT,  DASHED, DASHED, THIN,   THIN,   "D9E1F2", false, "#,##0");
-        XSSFCellStyle dataRight = make(wb, HorizontalAlignment.RIGHT,  DASHED, DASHED, THIN,   MEDIUM, "D9E1F2", false, "#,##0");
+        XSSFCellStyle dataBLMR  = make(wb, HorizontalAlignment.CENTER, DASHED, DASHED, MEDIUM, THIN,   "FFD9E1F2", false, null);
+        XSSFCellStyle dataMid   = make(wb, HorizontalAlignment.RIGHT,  DASHED, DASHED, NONE,   THIN,   "FFD9E1F2", false, null);
+        XSSFCellStyle dataLthin = make(wb, HorizontalAlignment.RIGHT,  DASHED, DASHED, THIN,   THIN,   "FFD9E1F2", false, "#,##0");
+        XSSFCellStyle dataRight = make(wb, HorizontalAlignment.RIGHT,  DASHED, DASHED, THIN,   MEDIUM, "FFD9E1F2", false, "#,##0");
 
         // 취소행 스타일 (하단 medium)
-        XSSFCellStyle cancelBLMR  = make(wb, HorizontalAlignment.CENTER, DASHED, MEDIUM, MEDIUM, THIN,   "D9E1F2", false, null);
-        XSSFCellStyle cancelMid   = make(wb, HorizontalAlignment.LEFT,   DASHED, MEDIUM, NONE,   THIN,   "D9E1F2", false, null);
-        XSSFCellStyle cancelLthin = make(wb, HorizontalAlignment.RIGHT,  DASHED, MEDIUM, THIN,   THIN,   "D9E1F2", false, "#,##0");
-        XSSFCellStyle cancelRight = make(wb, HorizontalAlignment.RIGHT,  DASHED, MEDIUM, THIN,   MEDIUM, "D9E1F2", false, "#,##0");
+        XSSFCellStyle cancelBLMR  = make(wb, HorizontalAlignment.CENTER, DASHED, MEDIUM, MEDIUM, THIN,   "FFD9E1F2", false, null);
+        XSSFCellStyle cancelMid   = make(wb, HorizontalAlignment.LEFT,   DASHED, MEDIUM, NONE,   THIN,   "FFD9E1F2", false, null);
+        XSSFCellStyle cancelLthin = make(wb, HorizontalAlignment.RIGHT,  DASHED, MEDIUM, THIN,   THIN,   "FFD9E1F2", false, "#,##0");
+        XSSFCellStyle cancelRight = make(wb, HorizontalAlignment.RIGHT,  DASHED, MEDIUM, THIN,   MEDIUM, "FFD9E1F2", false, "#,##0");
 
-        // 합계행 스타일 (medium + 노랑)
-        XSSFCellStyle sumBLMR  = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, MEDIUM, THIN,   "FFFF00", true,  null);
-        XSSFCellStyle sumMid   = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, NONE,   THIN,   "FFFF00", false, null);
-        XSSFCellStyle sumLthin = make(wb, HorizontalAlignment.RIGHT,  MEDIUM, MEDIUM, THIN,   THIN,   "FFFF00", false, "#,##0");
-        XSSFCellStyle sumRight = make(wb, HorizontalAlignment.RIGHT,  MEDIUM, MEDIUM, THIN,   MEDIUM, "FFFF00", false, "#,##0");
+        // 합계행 스타일 (medium + 노랑 FF알파)
+        XSSFCellStyle sumBLMR  = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, MEDIUM, THIN,   "FFFFFF00", true,  null);
+        XSSFCellStyle sumMid   = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, NONE,   THIN,   "FFFFFF00", false, null);
+        XSSFCellStyle sumLthin = make(wb, HorizontalAlignment.RIGHT,  MEDIUM, MEDIUM, THIN,   THIN,   "FFFFFF00", false, "#,##0");
+        XSSFCellStyle sumRight = make(wb, HorizontalAlignment.RIGHT,  MEDIUM, MEDIUM, THIN,   MEDIUM, "FFFFFF00", false, "#,##0");
 
         // 월별 스타일
         XSSFCellStyle mFirst     = make(wb, HorizontalAlignment.CENTER, MEDIUM, THIN,   MEDIUM, THIN, null, false, null);
@@ -291,53 +321,64 @@ public class BankExcelExportService {
         XSSFCellStyle mCellFirst = make(wb, HorizontalAlignment.CENTER, MEDIUM, THIN,   THIN,   THIN, null, false, "#,##0");
         XSSFCellStyle mCellMid   = make(wb, HorizontalAlignment.CENTER, THIN,   THIN,   THIN,   THIN, null, false, "#,##0");
         XSSFCellStyle mCellLast  = make(wb, HorizontalAlignment.CENTER, THIN,   MEDIUM, THIN,   THIN, null, false, "#,##0");
-        XSSFCellStyle mRFirst    = make(wb, HorizontalAlignment.CENTER, MEDIUM, THIN,   THIN, MEDIUM,  null, false, "#,##0");
-        XSSFCellStyle mRMid      = make(wb, HorizontalAlignment.CENTER, THIN,   THIN,   THIN, MEDIUM,  null, false, "#,##0");
-        XSSFCellStyle mRLast     = make(wb, HorizontalAlignment.CENTER, THIN,   MEDIUM, THIN, MEDIUM,  null, false, "#,##0");
+        XSSFCellStyle mRFirst    = make(wb, HorizontalAlignment.CENTER, MEDIUM, THIN,   THIN, MEDIUM, null, false, "#,##0");
+        XSSFCellStyle mRMid      = make(wb, HorizontalAlignment.CENTER, THIN,   THIN,   THIN, MEDIUM, null, false, "#,##0");
+        XSSFCellStyle mRLast     = make(wb, HorizontalAlignment.CENTER, THIN,   MEDIUM, THIN, MEDIUM, null, false, "#,##0");
 
-        // ── row2~3: 제목 병합 ──
-        ws.addMergedRegion(new CellRangeAddress(1, 2, 1, 8));
+        // ── row2~3: 제목 병합 (B2:I3) ──
+        CellRangeAddress titleRange = new CellRangeAddress(1, 2, 1, 8);
+        ws.addMergedRegion(titleRange);
         Row r2 = ws.createRow(1); r2.setHeightInPoints(14.5f);
         Cell titleCell = r2.createCell(1);
         titleCell.setCellFormula("접수일!A1");
         titleCell.setCellStyle(centerNB);
-        RegionUtil.setBorderTop(THIN,    new CellRangeAddress(1, 2, 1, 8), ws);
-        RegionUtil.setBorderBottom(THIN, new CellRangeAddress(1, 2, 1, 8), ws);
-        RegionUtil.setBorderLeft(THIN,   new CellRangeAddress(1, 2, 1, 8), ws);
-        RegionUtil.setBorderRight(THIN,  new CellRangeAddress(1, 2, 1, 8), ws);
+        // 병합 셀 외곽 테두리 (RegionUtil)
+        RegionUtil.setBorderTop(THIN,    titleRange, ws);
+        RegionUtil.setBorderBottom(THIN, titleRange, ws);
+        RegionUtil.setBorderLeft(THIN,   titleRange, ws);
+        RegionUtil.setBorderRight(THIN,  titleRange, ws);
         Row r3 = ws.createRow(2); r3.setHeightInPoints(37.5f);
 
         // ── row4: 승인번호 / 총한도 ──
         Row r4 = ws.createRow(3); r4.setHeightInPoints(19.5f);
-        ws.addMergedRegion(new CellRangeAddress(3, 3, 1, 3));
+        CellRangeAddress apvRange = new CellRangeAddress(3, 3, 1, 3);
+        ws.addMergedRegion(apvRange);
         Cell apvCell = r4.createCell(1);
         apvCell.setCellValue("승인번호 : " + approvalNo);
         apvCell.setCellStyle(centerNB);
-        RegionUtil.setBorderTop(THIN,    new CellRangeAddress(3, 3, 1, 3), ws);
-        RegionUtil.setBorderBottom(THIN, new CellRangeAddress(3, 3, 1, 3), ws);
+        RegionUtil.setBorderTop(THIN,    apvRange, ws);
+        RegionUtil.setBorderBottom(THIN, apvRange, ws);
 
-        ws.addMergedRegion(new CellRangeAddress(3, 3, 6, 7));
+        // E4 상단 테두리 (원본에 존재)
+        XSSFCellStyle e4Style = wb.createCellStyle();
+        e4Style.setBorderTop(THIN);
+        r4.createCell(4).setCellStyle(e4Style);
+
+        CellRangeAddress limRange = new CellRangeAddress(3, 3, 6, 7);
+        ws.addMergedRegion(limRange);
         Cell limCell = r4.createCell(6);
         limCell.setCellValue("총한도 : " + (totalLimit / 100_000_000L) + "억원");
         limCell.setCellStyle(leftNB);
-        RegionUtil.setBorderTop(THIN,    new CellRangeAddress(3, 3, 6, 7), ws);
-        RegionUtil.setBorderBottom(THIN, new CellRangeAddress(3, 3, 6, 7), ws);
+        RegionUtil.setBorderTop(THIN,    limRange, ws);
+        RegionUtil.setBorderBottom(THIN, limRange, ws);
 
         // ── row5: ▣ 총접수 / ▣ 당일접수 / TODAY() ──
         Row r5 = ws.createRow(4); r5.setHeightInPoints(30.5f);
-        ws.addMergedRegion(new CellRangeAddress(4, 4, 1, 4));
+        CellRangeAddress totalRange = new CellRangeAddress(4, 4, 1, 4);
+        ws.addMergedRegion(totalRange);
         Cell totalLbl = r5.createCell(1);
         totalLbl.setCellValue("▣ 총접수");
         totalLbl.setCellStyle(leftNB);
-        RegionUtil.setBorderTop(THIN,      new CellRangeAddress(4, 4, 1, 4), ws);
-        RegionUtil.setBorderBottom(MEDIUM, new CellRangeAddress(4, 4, 1, 4), ws);
+        RegionUtil.setBorderTop(THIN,      totalRange, ws);
+        RegionUtil.setBorderBottom(MEDIUM, totalRange, ws);
 
-        ws.addMergedRegion(new CellRangeAddress(4, 4, 6, 7));
+        CellRangeAddress dailyRange = new CellRangeAddress(4, 4, 6, 7);
+        ws.addMergedRegion(dailyRange);
         Cell dailyLbl = r5.createCell(6);
         dailyLbl.setCellValue("▣ 당일접수");
         dailyLbl.setCellStyle(leftNB);
-        RegionUtil.setBorderTop(THIN,      new CellRangeAddress(4, 4, 6, 7), ws);
-        RegionUtil.setBorderBottom(MEDIUM, new CellRangeAddress(4, 4, 6, 7), ws);
+        RegionUtil.setBorderTop(THIN,      dailyRange, ws);
+        RegionUtil.setBorderBottom(MEDIUM, dailyRange, ws);
 
         XSSFCellStyle todayStyle = wb.createCellStyle();
         todayStyle.setDataFormat(wb.createDataFormat().getFormat("yyyy-mm-dd"));
@@ -431,6 +472,196 @@ public class BankExcelExportService {
                 cntCell.setCellFormula(months[i][1]);
                 amtCell.setCellFormula(months[i][2]);
             }
+        }
+    }
+
+    // ──────────────────────────────────────────
+    //  일별접수건수 시트
+    // ──────────────────────────────────────────
+
+    private void createDailyReceiptSheet(XSSFWorkbook wb) {
+        XSSFSheet ws = wb.createSheet("일별접수건수");
+
+        XSSFCellStyle hdr = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, "FFD9E1F2", true, null);
+        XSSFCellStyle center = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, null);
+        XSSFCellStyle num = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, "#,##0");
+        XSSFCellStyle dateS = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, "yyyy-mm-dd");
+
+        // 헤더
+        Row header = ws.createRow(0);
+        String[] cols = {"날짜", "구분", "건수", "금액", "누계건수", "누계금액"};
+        for (int i = 0; i < cols.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(cols[i]);
+            cell.setCellStyle(hdr);
+        }
+
+        // 월별 일자 데이터 생성 (4~8월, 각 월 마지막 행에 합계)
+        int rowIdx = 1;
+        int[][] monthDays = {{4, 30}, {5, 31}, {6, 30}, {7, 31}, {8, 31}};
+        for (int[] md : monthDays) {
+            int month = md[0], days = md[1];
+            int monthStart = rowIdx;
+            for (int day = 1; day <= days; day++) {
+                Row row = ws.createRow(rowIdx++);
+                try {
+                    Cell dateCell = row.createCell(0);
+                    dateCell.setCellValue(LocalDate.of(2025, month, day).toString());
+                    dateCell.setCellStyle(dateS);
+                } catch (Exception ignored) {}
+                row.createCell(1).setCellStyle(center);
+                row.createCell(2).setCellStyle(num);
+                row.createCell(3).setCellStyle(num);
+                row.createCell(4).setCellStyle(num);
+                row.createCell(5).setCellStyle(num);
+            }
+            // 월 합계행
+            Row sumRow = ws.createRow(rowIdx++);
+            Cell lbl = sumRow.createCell(0);
+            lbl.setCellValue(month + "월 합계");
+            lbl.setCellStyle(make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, MEDIUM, MEDIUM, "FFFFFF00", true, null));
+            Cell cntSum = sumRow.createCell(2);
+            cntSum.setCellFormula("SUM(C" + (monthStart + 1) + ":C" + rowIdx + ")");
+            cntSum.setCellStyle(num);
+            Cell amtSum = sumRow.createCell(3);
+            amtSum.setCellFormula("SUM(D" + (monthStart + 1) + ":D" + rowIdx + ")");
+            amtSum.setCellStyle(num);
+        }
+    }
+
+    // ──────────────────────────────────────────
+    //  일별실행건수 시트 (총합에서 참조: E35, F35, E66, F66, E127, F127, E158, F158)
+    // ──────────────────────────────────────────
+
+    private void createDailyExecutionSheet(XSSFWorkbook wb) {
+        XSSFSheet ws = wb.createSheet("일별실행건수");
+
+        XSSFCellStyle hdr = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, "FFD9E1F2", true, null);
+        XSSFCellStyle center = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, null);
+        XSSFCellStyle num = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, "#,##0");
+        XSSFCellStyle dateS = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, "yyyy-mm-dd");
+        XSSFCellStyle sumStyle = make(wb, HorizontalAlignment.CENTER, MEDIUM, MEDIUM, MEDIUM, MEDIUM, "FFFFFF00", true, "#,##0");
+
+        // 헤더 (row 1, index 0)
+        Row header = ws.createRow(0);
+        String[] cols = {"날짜", "구분", "건수", "금액", "건수(합계)", "금액(합계)"};
+        for (int i = 0; i < cols.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(cols[i]);
+            cell.setCellStyle(hdr);
+        }
+
+        // 빈 행을 최대 160행까지 생성 (총합 수식 참조: 35, 66, 127, 158행)
+        // 구조: 각 일자 1행 + 월 합계 1행
+        // 4월(30일+합계=31행): row2~32 → 합계 row35(index 34)
+        // 5월(31일+합계=32행): row36~67 → 합계 row66(index 65) ← 수식 참조
+        // 6월(30일+합계=31행): row68~98
+        // 7월(31일+합계=32행): → 합계 row127(index 126) ← 수식 참조
+        // 8월(31일+합계=32행): → 합계 row158(index 157) ← 수식 참조
+
+        // 빈 행 전체 생성 (index 1~160)
+        for (int i = 1; i <= 160; i++) {
+            Row row = ws.createRow(i);
+            row.createCell(0).setCellStyle(center);
+            row.createCell(1).setCellStyle(center);
+            row.createCell(2).setCellStyle(num);
+            row.createCell(3).setCellStyle(num);
+            row.createCell(4).setCellStyle(num);
+            row.createCell(5).setCellStyle(num);
+        }
+
+        // 4월 일자 (index 1~30)
+        for (int day = 1; day <= 30; day++) {
+            ws.getRow(day).getCell(0).setCellValue("2025-04-" + String.format("%02d", day));
+        }
+        // 4월 합계 → index 34 (row 35) = E35, F35
+        Row apr = ws.getRow(34);
+        apr.getCell(0).setCellValue("4월 합계");
+        apr.getCell(0).getCellStyle();
+        apr.getCell(4).setCellFormula("SUM(E2:E34)");
+        apr.getCell(5).setCellFormula("SUM(F2:F34)");
+        styleSumRow(apr, sumStyle);
+
+        // 5월 일자 (index 35~65)
+        for (int day = 1; day <= 31; day++) {
+            int idx = 34 + day;
+            if (idx <= 65) ws.getRow(idx).getCell(0).setCellValue("2025-05-" + String.format("%02d", day));
+        }
+        // 5월 합계 → index 65 (row 66) = E66, F66
+        Row may = ws.getRow(65);
+        may.getCell(0).setCellValue("5월 합계");
+        may.getCell(4).setCellFormula("SUM(E36:E65)");
+        may.getCell(5).setCellFormula("SUM(F36:F65)");
+        styleSumRow(may, sumStyle);
+
+        // 6월 일자 (index 66~95)
+        for (int day = 1; day <= 30; day++) {
+            int idx = 65 + day;
+            if (idx <= 95) ws.getRow(idx).getCell(0).setCellValue("2025-06-" + String.format("%02d", day));
+        }
+        // 6월 합계 → index 96
+        Row jun = ws.getRow(96);
+        if (jun != null) {
+            jun.getCell(0).setCellValue("6월 합계");
+            jun.getCell(4).setCellFormula("SUM(E67:E96)");
+            jun.getCell(5).setCellFormula("SUM(F67:F96)");
+            styleSumRow(jun, sumStyle);
+        }
+
+        // 7월 일자 (index 97~127)
+        for (int day = 1; day <= 31; day++) {
+            int idx = 96 + day;
+            if (idx <= 127) ws.getRow(idx).getCell(0).setCellValue("2025-07-" + String.format("%02d", day));
+        }
+        // 7월 합계 → index 126 (row 127) = E127, F127
+        Row jul = ws.getRow(126);
+        jul.getCell(0).setCellValue("7월 합계");
+        jul.getCell(4).setCellFormula("SUM(E98:E126)");
+        jul.getCell(5).setCellFormula("SUM(F98:F126)");
+        styleSumRow(jul, sumStyle);
+
+        // 8월 일자 (index 127~157)
+        for (int day = 1; day <= 31; day++) {
+            int idx = 127 + day;
+            if (idx <= 157) ws.getRow(idx).getCell(0).setCellValue("2025-08-" + String.format("%02d", day));
+        }
+        // 8월 합계 → index 157 (row 158) = E158, F158
+        Row aug = ws.getRow(157);
+        aug.getCell(0).setCellValue("8월 합계");
+        aug.getCell(4).setCellFormula("SUM(E128:E157)");
+        aug.getCell(5).setCellFormula("SUM(F128:F157)");
+        styleSumRow(aug, sumStyle);
+    }
+
+    private void styleSumRow(Row row, XSSFCellStyle style) {
+        for (int i = 0; i < 6; i++) {
+            Cell c = row.getCell(i);
+            if (c != null) c.setCellStyle(style);
+        }
+    }
+
+    // ──────────────────────────────────────────
+    //  상환예정내역표 시트
+    // ──────────────────────────────────────────
+
+    private void createRepaymentSheet(XSSFWorkbook wb) {
+        XSSFSheet ws = wb.createSheet("상환예정내역표");
+
+        XSSFCellStyle hdr = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, "FFD9E1F2", true, null);
+        XSSFCellStyle center = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, null);
+        XSSFCellStyle num = make(wb, HorizontalAlignment.CENTER, THIN, THIN, THIN, THIN, null, false, "#,##0");
+
+        // 헤더
+        Row header = ws.createRow(0);
+        String[] cols = {
+            "순번", "고객명", "은행", "대출금액", "금리", "상환방식",
+            "대출기간", "거치기간", "월 상환금", "상환예정일"
+        };
+        for (int i = 0; i < cols.length; i++) {
+            Cell cell = header.createCell(i);
+            cell.setCellValue(cols[i]);
+            cell.setCellStyle(hdr);
+            ws.setColumnWidth(i, 15 * 256);
         }
     }
 
