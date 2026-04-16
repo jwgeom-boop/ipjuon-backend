@@ -70,6 +70,7 @@ public class BankConsultationController {
     public ConsultationRequest update(@PathVariable UUID id, @RequestBody ConsultationRequest req) {
         ConsultationRequest existing = repository.findById(id).orElseThrow();
 
+        if (req.getResident_no() != null) existing.setResident_no(req.getResident_no());
         if (req.getManager() != null) existing.setManager(req.getManager());
         if (req.getTransfer_date() != null) existing.setTransfer_date(req.getTransfer_date());
         if (req.getDivision() != null) existing.setDivision(req.getDivision());
