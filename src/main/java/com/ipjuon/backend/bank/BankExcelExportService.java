@@ -37,7 +37,7 @@ public class BankExcelExportService {
 
             // ── 날짜 포맷 상수 ──
             short FMT_MONTHLY   = fmt.getFormat("m\"월\" d\"일\";@");                    // 접수일 시트 날짜
-            short FMT_DAILY     = fmt.getFormat("[$-F800]dddd\\, mmmm dd\\, yyyy");     // 일별 시트 날짜
+            short FMT_DAILY     = fmt.getFormat("yyyy-mm-dd");                            // 일별 시트 날짜
             short FMT_TODAY     = fmt.getFormat("mm-dd-yy");                             // TODAY() 셀
             short FMT_COUNT     = fmt.getFormat("0_);[Red]\\(0\\)");                    // 건수
             short FMT_AMOUNT    = fmt.getFormat("_-* #,##0_-;\\-* #,##0_-;_-* \"-\"_-;_-@_-"); // 금액
@@ -439,7 +439,7 @@ public class BankExcelExportService {
         XSSFSheet ws = wb.createSheet(sheetName);
 
         ws.setColumnWidth(0, 4 * 256);
-        ws.setColumnWidth(1, 18 * 256);  // B열: 날짜 (긴 포맷)
+        ws.setColumnWidth(1, (int)(13.0 * 256));  // B열: 날짜 (yyyy-mm-dd)
         ws.setColumnWidth(2, 10 * 256);
         ws.setColumnWidth(3, 16 * 256);
         ws.setColumnWidth(4, 12 * 256);
