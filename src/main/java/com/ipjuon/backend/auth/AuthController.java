@@ -2,6 +2,8 @@ package com.ipjuon.backend.auth;
 
 import com.ipjuon.backend.vendor.Vendor;
 import com.ipjuon.backend.vendor.VendorRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +15,8 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "*")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     @Value("${admin.username}")
     private String adminUsername;
@@ -36,6 +40,7 @@ public class AuthController {
 
         // 관리자 로그인
         if (adminUsername.equals(username) && adminPassword.equals(password)) {
+            log.info("[로그인 성공] 관리자: {}", username);
             return Map.of("success", true, "role", "admin", "token", "admin-authenticated");
         }
 
@@ -46,6 +51,7 @@ public class AuthController {
             if ("은행".equals(vendor.getVendorType())
                     && passwordEncoder.matches(password, vendor.getPassword())
                     && "active".equals(vendor.getStatus())) {
+                log.info("[로그인 성공] 은행: {} ({})", vendor.getVendorName(), username);
                 return Map.of(
                     "success", true,
                     "role", "bank",
@@ -53,6 +59,13 @@ public class AuthController {
                     "token", "bank-authenticated"
                 );
             }
+            if (!"active".equals(vendor.getStatus())) {
+                log.warn("[로그인 실패] 비활성 계정: {}", username);
+            } else {
+                log.warn("[로그인 실패] 비밀번호 불일치: {}", username);
+            }
+        } else {
+            log.warn("[로그인 실패] 존재하지 않는 계정: {}", username);
         }
 
         return Map.of("success", false, "message", "아이디 또는 비밀번호가 올바르지 않습니다");

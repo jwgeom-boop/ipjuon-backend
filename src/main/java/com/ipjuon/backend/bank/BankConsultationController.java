@@ -4,6 +4,8 @@ import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.vendor.Vendor;
 import com.ipjuon.backend.vendor.VendorRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,6 +24,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/bank")
 @CrossOrigin(origins = "*")
 public class BankConsultationController {
+
+    private static final Logger log = LoggerFactory.getLogger(BankConsultationController.class);
 
     private final ConsultationRepository repository;
     private final BankExcelExportService excelService;
@@ -84,6 +88,7 @@ public class BankConsultationController {
     @PutMapping("/consultations/{id}")
     public ConsultationRequest update(@PathVariable UUID id, @RequestBody ConsultationRequest req) {
         ConsultationRequest existing = repository.findById(id).orElseThrow();
+        log.info("[상담 수정] id: {}", id);
 
         if (req.getResident_no() != null) existing.setResident_no(req.getResident_no());
         if (req.getManager() != null) existing.setManager(req.getManager());
@@ -120,6 +125,7 @@ public class BankConsultationController {
     @PatchMapping("/consultations/{id}/status")
     public ConsultationRequest updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> body) {
         ConsultationRequest existing = repository.findById(id).orElseThrow();
+        log.info("[상태 변경] id: {}, 상태: {}", id, body.get("loan_status"));
         if (body.get("loan_status") != null) existing.setLoan_status(body.get("loan_status"));
         return repository.save(existing);
     }
@@ -148,6 +154,8 @@ public class BankConsultationController {
                 bankFax     = vendor.getFax()         != null ? vendor.getFax()         : "";
             }
         }
+
+        log.info("[엑셀 다운로드] 은행: {}, 건수: {}", bank_name != null ? bank_name : "전체", list.size());
 
         byte[] data = excelService.generateExcel(
                 complexName, complexFullName,
