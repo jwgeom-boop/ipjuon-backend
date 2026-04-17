@@ -70,4 +70,30 @@ public class AuthController {
 
         return Map.of("success", false, "message", "아이디 또는 비밀번호가 올바르지 않습니다");
     }
+
+    @PostMapping("/change-password")
+    public Map<String, Object> changePassword(@RequestBody Map<String, String> body) {
+        String loginId     = body.get("loginId");
+        String currentPw   = body.get("currentPassword");
+        String newPw       = body.get("newPassword");
+
+        if (loginId == null || currentPw == null || newPw == null)
+            return Map.of("success", false, "message", "필수 항목이 누락되었습니다");
+
+        if (newPw.length() < 6)
+            return Map.of("success", false, "message", "새 비밀번호는 6자 이상이어야 합니다");
+
+        return vendorRepository.findByLoginId(loginId)
+                .map(vendor -> {
+                    if (!passwordEncoder.matches(currentPw, vendor.getPassword())) {
+                        log.warn("[비밀번호 변경 실패] 현재 비밀번호 불일치: {}", loginId);
+                        return Map.<String, Object>of("success", false, "message", "현재 비밀번호가 올바르지 않습니다");
+                    }
+                    vendor.setPassword(passwordEncoder.encode(newPw));
+                    vendorRepository.save(vendor);
+                    log.info("[비밀번호 변경 성공] {}", loginId);
+                    return Map.<String, Object>of("success", true, "message", "비밀번호가 변경되었습니다");
+                })
+                .orElse(Map.of("success", false, "message", "계정을 찾을 수 없습니다"));
+    }
 }
