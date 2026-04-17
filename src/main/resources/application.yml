@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ipjuon
+    username: postgres
+    password: ipjuon1234
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  web:
+    cors:
+      allowed-origins: http://localhost:8080,http://localhost:8081,http://192.168.0.25:8080,http://192.168.0.25:8081,https://supabase-connect-zeta.vercel.app
+
+server:
+  port: 8090
+
+complex:
+  name: 창원 힐스테이트 마크로엔
+  full-name: 창원 힐스테이트 마크로엔
+  approval-no: "1132500000010"
+  total-limit: 20000000000
+
+jwt:
+  secret: ipjuon-jwt-secret-key-2024-must-be-at-least-256bits-long-enough
+  expiration-hours: 8
+
+admin:
+  username: ipjuon
+  password: ipjuon2024!
+
+bank:
+  username: bank
+  password: bank2024!

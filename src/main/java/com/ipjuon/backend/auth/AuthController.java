@@ -26,11 +26,14 @@ public class AuthController {
 
     private final VendorRepository vendorRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
     public AuthController(VendorRepository vendorRepository,
-                          BCryptPasswordEncoder passwordEncoder) {
+                          BCryptPasswordEncoder passwordEncoder,
+                          JwtUtil jwtUtil) {
         this.vendorRepository = vendorRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtUtil = jwtUtil;
     }
 
     @PostMapping("/login")
@@ -41,7 +44,8 @@ public class AuthController {
         // 관리자 로그인
         if (adminUsername.equals(username) && adminPassword.equals(password)) {
             log.info("[로그인 성공] 관리자: {}", username);
-            return Map.of("success", true, "role", "admin", "token", "admin-authenticated");
+            String token = jwtUtil.generate(username, "admin", null);
+            return Map.of("success", true, "role", "admin", "token", token);
         }
 
         // 은행 계정 로그인 (vendor_accounts 테이블 조회)
@@ -52,11 +56,12 @@ public class AuthController {
                     && passwordEncoder.matches(password, vendor.getPassword())
                     && "active".equals(vendor.getStatus())) {
                 log.info("[로그인 성공] 은행: {} ({})", vendor.getVendorName(), username);
+                String token = jwtUtil.generate(username, "bank", vendor.getVendorName());
                 return Map.of(
                     "success", true,
                     "role", "bank",
                     "bank_name", vendor.getVendorName(),
-                    "token", "bank-authenticated"
+                    "token", token
                 );
             }
             if (!"active".equals(vendor.getStatus())) {
