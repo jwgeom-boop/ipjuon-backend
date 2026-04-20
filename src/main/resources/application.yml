@@ -18,7 +18,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
   web:
     cors:
-      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080,http://localhost:8081,https://supabase-connect-zeta.vercel.app}
+      allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8080,http://localhost:8081,http://localhost:5173,https://supabase-connect-zeta.vercel.app}
 
 server:
   port: ${SERVER_PORT:8090}
@@ -40,3 +40,12 @@ admin:
 bank:
   username: ${BANK_USERNAME:bank}
   password: ${BANK_PASSWORD:}
+
+invite:
+  b2c-app-url: ${INVITE_B2C_APP_URL:https://ipjuon-app.vercel.app}
+
+solapi:
+  enabled: ${SOLAPI_ENABLED:false}
+  api-key: ${SOLAPI_API_KEY:}
+  api-secret: ${SOLAPI_API_SECRET:}
+  sender: ${SOLAPI_SENDER:}
