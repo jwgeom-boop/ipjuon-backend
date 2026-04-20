@@ -197,14 +197,57 @@ public class BankConsultationController {
             return r.getCreatedAt().toLocalDate().equals(LocalDate.now());
         }).count();
 
-        return Map.of(
-                "total_count",  totalCount,
-                "total_amount", totalAmount,
-                "cancel_count", cancelCount,
-                "cancel_amount",cancelAmount,
-                "done_count",   doneCount,
-                "wait_count",   waitCount,
-                "today_count",  todayCount
-        );
+        // 구분별(고정/변동) × 취소여부 breakdown
+        long fixedCount = all.stream().filter(r -> "고정".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status())).count();
+        long fixedAmount = all.stream().filter(r -> "고정".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
+                .mapToLong(ConsultationRequest::getLoan_amount).sum();
+        long varCount = all.stream().filter(r -> "변동".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status())).count();
+        long varAmount = all.stream().filter(r -> "변동".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
+                .mapToLong(ConsultationRequest::getLoan_amount).sum();
+
+        // 오늘 실행예정 / 서류 미제출 / 이번주 실행예정
+        LocalDate today = LocalDate.now();
+        LocalDate weekEnd = today.plusDays(7);
+        long todayExecCount = all.stream().filter(r -> today.equals(r.getExecution_date()) && !"cancel".equals(r.getLoan_status())).count();
+        long docMissingCount = all.stream().filter(r -> r.getDocument_date() == null && !"cancel".equals(r.getLoan_status()) && r.getReceive_date() != null).count();
+        long weekExecCount = all.stream().filter(r -> r.getExecution_date() != null
+                && !"cancel".equals(r.getLoan_status())
+                && !r.getExecution_date().isBefore(today)
+                && r.getExecution_date().isBefore(weekEnd)).count();
+
+        // 은행 정보 (bank_name 지정된 경우)
+        String bankManager = "", bankPhone = "", bankFax = "";
+        if (bank_name != null && !bank_name.isEmpty()) {
+            Vendor v = vendorRepository.findByVendorName(bank_name).orElse(null);
+            if (v != null) {
+                bankManager = v.getBankManager() != null ? v.getBankManager() : "";
+                bankPhone   = v.getPhone() != null ? v.getPhone() : "";
+                bankFax     = v.getFax() != null ? v.getFax() : "";
+            }
+        }
+
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("total_count",  totalCount);
+        result.put("total_amount", totalAmount);
+        result.put("cancel_count", cancelCount);
+        result.put("cancel_amount",cancelAmount);
+        result.put("done_count",   doneCount);
+        result.put("wait_count",   waitCount);
+        result.put("today_count",  todayCount);
+        result.put("fixed_count",  fixedCount);
+        result.put("fixed_amount", fixedAmount);
+        result.put("var_count",    varCount);
+        result.put("var_amount",   varAmount);
+        result.put("today_exec_count",   todayExecCount);
+        result.put("doc_missing_count",  docMissingCount);
+        result.put("week_exec_count",    weekExecCount);
+        result.put("complex_name",       complexName);
+        result.put("complex_full_name",  complexFullName);
+        result.put("approval_no",        approvalNo);
+        result.put("total_limit",        totalLimit);
+        result.put("bank_manager",       bankManager);
+        result.put("bank_phone",         bankPhone);
+        result.put("bank_fax",           bankFax);
+        return result;
     }
 }

@@ -27,6 +27,8 @@ public class JwtFilter extends OncePerRequestFilter {
         if ("POST".equalsIgnoreCase(request.getMethod()) && "/api/invite".equals(path)) return true;
         // GET /api/invite/{id}는 B2C 앱에서 attribution 조회용 (인증 불필요)
         if ("GET".equalsIgnoreCase(request.getMethod()) && path.matches("^/api/invite/[0-9a-fA-F\\-]+$")) return true;
+        // PATCH /api/invite/{id}/track는 B2C 앱 funnel 추적용 (인증 불필요)
+        if ("PATCH".equalsIgnoreCase(request.getMethod()) && path.matches("^/api/invite/[0-9a-fA-F\\-]+/track$")) return true;
         return path.startsWith("/api/auth/") || path.startsWith("/api/consultation");
     }
 

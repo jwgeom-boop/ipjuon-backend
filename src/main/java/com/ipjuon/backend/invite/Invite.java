@@ -35,6 +35,12 @@ public class Invite {
     @Column(name = "sent_at")
     private OffsetDateTime sentAt;
 
+    @Column(name = "opened_at")
+    private OffsetDateTime openedAt;
+
+    @Column(name = "registered_at")
+    private OffsetDateTime registeredAt;
+
     public UUID getId() { return id; }
     public String getComplexName() { return complexName; }
     public void setComplexName(String complexName) { this.complexName = complexName; }
@@ -49,4 +55,8 @@ public class Invite {
     public String getSentBy() { return sentBy; }
     public void setSentBy(String sentBy) { this.sentBy = sentBy; }
     public OffsetDateTime getSentAt() { return sentAt; }
+    public OffsetDateTime getOpenedAt() { return openedAt; }
+    public void setOpenedAt(OffsetDateTime openedAt) { this.openedAt = openedAt; }
+    public OffsetDateTime getRegisteredAt() { return registeredAt; }
+    public void setRegisteredAt(OffsetDateTime registeredAt) { this.registeredAt = registeredAt; }
 }

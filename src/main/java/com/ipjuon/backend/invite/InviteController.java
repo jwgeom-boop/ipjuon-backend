@@ -5,6 +5,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -69,6 +70,37 @@ public class InviteController {
                 "phone", i.getPhone() == null ? "" : i.getPhone()
             ))
             .orElseGet(Map::of);
+    }
+
+    @PatchMapping("/{id}/track")
+    public Map<String, Object> track(@PathVariable UUID id, @RequestBody TrackRequest req) {
+        return repository.findById(id)
+            .map(invite -> {
+                String event = req.event == null ? "" : req.event.toLowerCase();
+                OffsetDateTime now = OffsetDateTime.now();
+                boolean updated = false;
+                if ("opened".equals(event) && invite.getOpenedAt() == null) {
+                    invite.setOpenedAt(now);
+                    updated = true;
+                } else if ("registered".equals(event)) {
+                    if (invite.getOpenedAt() == null) invite.setOpenedAt(now);
+                    if (invite.getRegisteredAt() == null) {
+                        invite.setRegisteredAt(now);
+                        updated = true;
+                    }
+                }
+                if (updated) repository.save(invite);
+                return Map.<String, Object>of(
+                    "id", invite.getId().toString(),
+                    "event", event,
+                    "updated", updated
+                );
+            })
+            .orElseGet(() -> Map.<String, Object>of("updated", false, "error", "not_found"));
+    }
+
+    public static class TrackRequest {
+        public String event;
     }
 
     private String normalizePhone(String phone) {
