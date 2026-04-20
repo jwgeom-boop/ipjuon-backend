@@ -3,8 +3,11 @@ package com.ipjuon.backend.invite;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/invite")
@@ -28,21 +31,26 @@ public class InviteController {
         String complex = req.complexName == null ? "" : req.complexName;
         String sentBy = req.sentBy == null ? "" : req.sentBy;
 
-        String message = buildMessage(complex);
-        SmsService.SendResult result = smsService.send(phone, message);
-
         Invite invite = new Invite();
         invite.setComplexName(complex);
         invite.setPhone(phone);
+        invite.setStatus("PENDING");
+        invite.setSentBy(sentBy);
+        invite = repository.save(invite);
+
+        String url = buildUrl(complex, invite.getId());
+        String message = buildMessage(complex, url);
+        SmsService.SendResult result = smsService.send(phone, message);
+
         invite.setStatus(result.success ? "SUCCESS" : "FAILED");
         invite.setMethod(result.method);
         invite.setErrorMessage(result.errorMessage);
-        invite.setSentBy(sentBy);
         repository.save(invite);
 
         return Map.of(
             "success", result.success,
             "method", result.method,
+            "inviteId", invite.getId(),
             "error", result.errorMessage == null ? "" : result.errorMessage
         );
     }
@@ -52,13 +60,29 @@ public class InviteController {
         return repository.findAllOrdered();
     }
 
+    @GetMapping("/{id}")
+    public Map<String, Object> getOne(@PathVariable UUID id) {
+        return repository.findById(id)
+            .map(i -> Map.<String, Object>of(
+                "id", i.getId().toString(),
+                "complexName", i.getComplexName() == null ? "" : i.getComplexName(),
+                "phone", i.getPhone() == null ? "" : i.getPhone()
+            ))
+            .orElseGet(Map::of);
+    }
+
     private String normalizePhone(String phone) {
         if (phone == null) return "";
         return phone.replaceAll("\\D", "");
     }
 
-    private String buildMessage(String complex) {
-        return "[입주ON] " + complex + " 잔금대출 안내 앱입니다. " + b2cAppUrl;
+    private String buildUrl(String complex, UUID inviteId) {
+        String encoded = URLEncoder.encode(complex == null ? "" : complex, StandardCharsets.UTF_8);
+        return b2cAppUrl + "?complex=" + encoded + "&invite=" + inviteId;
+    }
+
+    private String buildMessage(String complex, String url) {
+        return "[입주ON] " + complex + " 잔금대출 안내 앱입니다. " + url;
     }
 
     public static class SendRequest {

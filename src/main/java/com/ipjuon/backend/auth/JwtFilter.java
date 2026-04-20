@@ -23,8 +23,10 @@ public class JwtFilter extends OncePerRequestFilter {
         // OPTIONS preflight 요청은 인증 불필요
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
         String path = request.getServletPath();
-        // POST /api/invite는 현장 앱에서 호출 (인증 불필요), GET은 관리자용이라 인증 필요
+        // POST /api/invite는 현장 앱에서 호출 (인증 불필요), GET /api/invite는 관리자용이라 인증 필요
         if ("POST".equalsIgnoreCase(request.getMethod()) && "/api/invite".equals(path)) return true;
+        // GET /api/invite/{id}는 B2C 앱에서 attribution 조회용 (인증 불필요)
+        if ("GET".equalsIgnoreCase(request.getMethod()) && path.matches("^/api/invite/[0-9a-fA-F\\-]+$")) return true;
         return path.startsWith("/api/auth/") || path.startsWith("/api/consultation");
     }
 
