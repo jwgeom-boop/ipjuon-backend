@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -115,18 +116,37 @@ public class BankConsultationController {
         if (req.getOption_account() != null) existing.setOption_account(req.getOption_account());
         if (req.getInterim_virtual_account() != null) existing.setInterim_virtual_account(req.getInterim_virtual_account());
         if (req.getSpecial_notes() != null) existing.setSpecial_notes(req.getSpecial_notes());
-        if (req.getLoan_status() != null) existing.setLoan_status(req.getLoan_status());
+        if (req.getDocuments_checked() != null) existing.setDocuments_checked(req.getDocuments_checked());
+        if (req.getConsultation_checks() != null) existing.setConsultation_checks(req.getConsultation_checks());
+        if (req.getExisting_homes() != null) existing.setExisting_homes(req.getExisting_homes());
+        if (req.getExisting_credit_loan() != null) existing.setExisting_credit_loan(req.getExisting_credit_loan());
+        if (req.getExisting_collateral_loan() != null) existing.setExisting_collateral_loan(req.getExisting_collateral_loan());
+        if (req.getCredit_score_type() != null) existing.setCredit_score_type(req.getCredit_score_type());
+        if (req.getCredit_score() != null) existing.setCredit_score(req.getCredit_score());
+        if (req.getSale_price_amount() != null) existing.setSale_price_amount(req.getSale_price_amount());
+        if (req.getLoan_status() != null) {
+            String oldStatus = existing.getLoan_status();
+            String newStatus = req.getLoan_status();
+            existing.setLoan_status(newStatus);
+            if (!java.util.Objects.equals(oldStatus, newStatus)) {
+                existing.setStage_changed_at(OffsetDateTime.now());
+            }
+        }
         if (req.getMemo() != null) existing.setMemo(req.getMemo());
 
         return repository.save(existing);
     }
 
-    // 상태 변경
+    // 상태 변경 (단계 전환 시 stage_changed_at 자동 갱신)
     @PatchMapping("/consultations/{id}/status")
     public ConsultationRequest updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> body) {
         ConsultationRequest existing = repository.findById(id).orElseThrow();
-        log.info("[상태 변경] id: {}, 상태: {}", id, body.get("loan_status"));
-        if (body.get("loan_status") != null) existing.setLoan_status(body.get("loan_status"));
+        String newStatus = body.get("loan_status");
+        log.info("[단계 변경] id: {}, 단계: {} -> {}", id, existing.getLoan_status(), newStatus);
+        if (newStatus != null && !java.util.Objects.equals(existing.getLoan_status(), newStatus)) {
+            existing.setLoan_status(newStatus);
+            existing.setStage_changed_at(OffsetDateTime.now());
+        }
         return repository.save(existing);
     }
 
@@ -192,17 +212,24 @@ public class BankConsultationController {
                 .mapToLong(ConsultationRequest::getLoan_amount).sum();
         long doneCount  = all.stream().filter(r -> "done".equals(r.getLoan_status())).count();
         long waitCount  = all.stream().filter(r -> r.getLoan_status() == null || "wait".equals(r.getLoan_status())).count();
+
+        // 7단계 파이프라인 카운트 (상담사 관리용)
+        long applyCount      = all.stream().filter(r -> "apply".equals(r.getLoan_status())).count();
+        long consultingCount = all.stream().filter(r -> "consulting".equals(r.getLoan_status())).count();
+        long reviewingCount  = all.stream().filter(r -> "reviewing".equals(r.getLoan_status())).count();
+        long resultCount     = all.stream().filter(r -> "result".equals(r.getLoan_status())).count();
+        long executingCount  = all.stream().filter(r -> "executing".equals(r.getLoan_status())).count();
         long todayCount = all.stream().filter(r -> {
             if (r.getCreatedAt() == null) return false;
             return r.getCreatedAt().toLocalDate().equals(LocalDate.now());
         }).count();
 
-        // 구분별(고정/변동) × 취소여부 breakdown
-        long fixedCount = all.stream().filter(r -> "고정".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status())).count();
-        long fixedAmount = all.stream().filter(r -> "고정".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
+        // 상품별(고정/변동) × 취소여부 breakdown (product 필드 사용)
+        long fixedCount = all.stream().filter(r -> "고정".equals(r.getProduct()) && !"cancel".equals(r.getLoan_status())).count();
+        long fixedAmount = all.stream().filter(r -> "고정".equals(r.getProduct()) && !"cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
                 .mapToLong(ConsultationRequest::getLoan_amount).sum();
-        long varCount = all.stream().filter(r -> "변동".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status())).count();
-        long varAmount = all.stream().filter(r -> "변동".equals(r.getDivision()) && !"cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
+        long varCount = all.stream().filter(r -> "변동".equals(r.getProduct()) && !"cancel".equals(r.getLoan_status())).count();
+        long varAmount = all.stream().filter(r -> "변동".equals(r.getProduct()) && !"cancel".equals(r.getLoan_status()) && r.getLoan_amount() != null)
                 .mapToLong(ConsultationRequest::getLoan_amount).sum();
 
         // 오늘 실행예정 / 서류 미제출 / 이번주 실행예정
@@ -248,6 +275,11 @@ public class BankConsultationController {
         result.put("bank_manager",       bankManager);
         result.put("bank_phone",         bankPhone);
         result.put("bank_fax",           bankFax);
+        result.put("apply_count",        applyCount);
+        result.put("consulting_count",   consultingCount);
+        result.put("reviewing_count",    reviewingCount);
+        result.put("result_count",       resultCount);
+        result.put("executing_count",    executingCount);
         return result;
     }
 }

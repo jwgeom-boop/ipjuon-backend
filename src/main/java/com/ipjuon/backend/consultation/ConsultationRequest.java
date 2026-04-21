@@ -64,7 +64,24 @@ public class ConsultationRequest {
     private String option_account;    // 옵션계좌
     private String interim_virtual_account;   // 중도금가상계좌
     private String special_notes;     // 불비/특이사항
-    private String loan_status;       // 대출상태 (wait/done/cancel)
+    private String loan_status;       // 대출상태 (apply/consulting/reviewing/result/executing/done/cancel)
+
+    @Column(name = "stage_changed_at")
+    private OffsetDateTime stage_changed_at; // 현재 단계 진입 시각 (체류일 계산용)
+
+    @Column(name = "documents_checked", columnDefinition = "text")
+    private String documents_checked; // 체크된 서류 목록 (쉼표 구분 key: idcard,resident_cert,...)
+
+    @Column(name = "consultation_checks", columnDefinition = "text")
+    private String consultation_checks; // 상담 체크리스트 (spec §7)
+
+    // 상담 시 확인 정보
+    private String existing_homes;         // 주택보유 상태 (무주택/생애최초/1주택/2주택/3주택이상)
+    private Long existing_credit_loan;     // 기 신용대출 (원)
+    private Long existing_collateral_loan; // 기 담보대출 (원)
+    private String credit_score_type;      // 신용평가사 (KCB/NICE)
+    private Integer credit_score;          // 신용점수 (0-1000)
+    private Long sale_price_amount;        // 분양가 (원, 상담사 확정)
 
     // Getters and Setters - 기본
     public UUID getId() { return id; }
@@ -162,4 +179,26 @@ public class ConsultationRequest {
     public void setSpecial_notes(String v) { this.special_notes = v; }
     public String getLoan_status() { return loan_status; }
     public void setLoan_status(String v) { this.loan_status = v; }
+    @JsonProperty("stage_changed_at")
+    public OffsetDateTime getStage_changed_at() { return stage_changed_at; }
+    public void setStage_changed_at(OffsetDateTime v) { this.stage_changed_at = v; }
+
+    public String getDocuments_checked() { return documents_checked; }
+    public void setDocuments_checked(String v) { this.documents_checked = v; }
+
+    public String getConsultation_checks() { return consultation_checks; }
+    public void setConsultation_checks(String v) { this.consultation_checks = v; }
+
+    public String getExisting_homes() { return existing_homes; }
+    public void setExisting_homes(String v) { this.existing_homes = v; }
+    public Long getExisting_credit_loan() { return existing_credit_loan; }
+    public void setExisting_credit_loan(Long v) { this.existing_credit_loan = v; }
+    public Long getExisting_collateral_loan() { return existing_collateral_loan; }
+    public void setExisting_collateral_loan(Long v) { this.existing_collateral_loan = v; }
+    public String getCredit_score_type() { return credit_score_type; }
+    public void setCredit_score_type(String v) { this.credit_score_type = v; }
+    public Integer getCredit_score() { return credit_score; }
+    public void setCredit_score(Integer v) { this.credit_score = v; }
+    public Long getSale_price_amount() { return sale_price_amount; }
+    public void setSale_price_amount(Long v) { this.sale_price_amount = v; }
 }
