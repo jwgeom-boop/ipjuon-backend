@@ -64,8 +64,8 @@ public class DataInitializer implements CommandLineRunner {
         long bankCount = repository.findAllBankConsultations().stream()
                 .filter(r -> r.getManager() != null)
                 .count();
-        // 40건 미만이면 전체 seed 데이터 삭제 후 재삽입 (시드 마커: special_notes = "SEED")
-        if (bankCount >= 44) return;
+        // 53건 미만이면 전체 seed 데이터 삭제 후 재삽입 (시드 마커: special_notes = "SEED")
+        if (bankCount >= 53) return;
 
         // 기존 SEED 데이터만 삭제 (실제 운영 데이터는 보존)
         repository.findAllBankConsultations().stream()
@@ -74,7 +74,7 @@ public class DataInitializer implements CommandLineRunner {
 
         LocalDate today = LocalDate.now();
 
-        // 7단계 파이프라인: apply(신청) → consulting(상담중) → reviewing(심사중) → result(결과대기) → executing(실행예정) → done(실행완료) / cancel(취소)
+        // v3 9단계 파이프라인: apply(신청) → consulting(상담) → reviewing(가심사) → result(결과안내) → signing_reservation(자서예약) → signing(자서) → executing(대출실행) → done(완료) / cancel(취소)
         // stageOffset: 현재 단계 진입 후 경과일 (음수, 체류일 경고 테스트용)
         Object[][] samples = {
             // {name, phone, bank, dong, ho, manager, division, ownership, apt_type, product, loan_status, loan_amount, receiveOffset, execOffset, docOffset, stageOffset, memo}
@@ -110,6 +110,19 @@ public class DataInitializer implements CommandLineRunner {
             {"이채원", "010-3232-3232", "하나은행",   "122", "1302", "박민수", "조합", "공동", "71", "고정", "result",  285000000L, -13, null, -9, -2, "승인, 실행일 협의"},
             {"김다은", "010-4343-4343", "KB국민은행", "123", "801",  "최현우", "조합", "단독", "84", "고정", "result",  355000000L, -12, null, -8, 0, null},
             {"홍민석", "010-5454-5454", "우리은행",   "124", "1602", "정다은", "일반", "단독", "59", "변동", "result",  245000000L, -15, null, -10, -3, "부결: 재심사 문의"},
+
+            // ─── 자서예약 (signing_reservation, 자서일 확정, 5건) ───
+            {"이수빈", "010-1515-1616", "신한은행",   "145", "702",  "이영희", "조합", "단독", "84", "고정", "signing_reservation", 360000000L, -16, null, -12, -2, "자서일 확정, 서류 준비"},
+            {"박도현", "010-1717-1818", "하나은행",   "146", "1203", "박민수", "조합", "공동", "71", "고정", "signing_reservation", 300000000L, -15, null, -11, -3, null},
+            {"최유나", "010-1919-2020", "KB국민은행", "147", "1501", "최현우", "일반", "단독", "59", "변동", "signing_reservation", 240000000L, -14, null, -10, -1, "자서일 D-3"},
+            {"윤태민", "010-2121-2323", "우리은행",   "148", "902",  "정다은", "조합", "단독", "84", "고정", "signing_reservation", 355000000L, -13, null, -9, -4, "정체: 고객 일정 재조율"},
+            {"장미래", "010-2424-2626", "NH농협은행", "149", "1102", "김영주", "조합", "공동", "71", "고정", "signing_reservation", 290000000L, -12, null, -8, 0, null},
+
+            // ─── 자서 (signing, 자서 진행 중/완료, 4건) ───
+            {"임성호", "010-2727-2929", "신한은행",   "150", "1602", "이영희", "조합", "단독", "84", "고정", "signing", 370000000L, -18, null, -14, -1, "자서 완료, 실행 대기"},
+            {"강보라", "010-3030-3232", "하나은행",   "151", "801",  "박민수", "일반", "공동", "71", "변동", "signing", 270000000L, -17, null, -13, -2, null},
+            {"오세영", "010-3333-3535", "IBK기업은행","152", "1401", "김태현", "조합", "단독", "84", "고정", "signing", 345000000L, -16, null, -12, -1, null},
+            {"송지아", "010-3636-3838", "KB국민은행", "153", "603",  "최현우", "조합", "단독", "59", "고정", "signing", 230000000L, -15, null, -11, -3, "정체: 자서 후 서류 보완 중"},
 
             // ─── 실행예정 (executing, 실행일 확정, 8건 = 오늘 5 + 이번주 3) ───
             {"유혜진", "010-6565-6565", "NH농협은행", "125", "1203", "김영주", "조합", "공동", "71", "고정", "executing", 310000000L, -18, 0, -12, -3, "오늘 실행, 서류 체크 완료"},
@@ -171,6 +184,6 @@ public class DataInitializer implements CommandLineRunner {
             repository.save(r);
         }
 
-        System.out.println("✅ 샘플 데이터 " + samples.length + "건 삽입 완료 (7단계 파이프라인: apply/consulting/reviewing/result/executing/done/cancel)");
+        System.out.println("✅ 샘플 데이터 " + samples.length + "건 삽입 완료 (v3 9단계: apply/consulting/reviewing/result/signing_reservation/signing/executing/done/cancel)");
     }
 }

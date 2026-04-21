@@ -83,6 +83,69 @@ public class ConsultationRequest {
     private Integer credit_score;          // 신용점수 (0-1000)
     private Long sale_price_amount;        // 분양가 (원, 상담사 확정)
 
+    // ===== v3: 6단계 파이프라인 확장 필드 =====
+    // 자서예약 단계 필수
+    private LocalDate moving_in_date;      // 입주일(이사일) - D-day 계산용
+    private String spouse_phone;           // 배우자 연락처
+
+    // 가심사결과 단계
+    private Long approved_amount;          // 승인금액 (원)
+    private String approved_rate;          // 금리 (예: "4.5%")
+    @Column(name = "approved_notified_at")
+    private OffsetDateTime approved_notified_at; // 결과 통보 시각
+    @Column(name = "customer_accepted_at")
+    private OffsetDateTime customer_accepted_at; // 고객 수용 확인
+
+    // 자서 단계
+    private LocalDate signing_date;        // 자서일
+    private String signing_time;           // 자서 시간 (예: "10:00")
+
+    // 추가 대출 / 은행 담당자
+    private Long additional_loan_amount;   // 추가대출 (원)
+    private String bank_branch;            // 지점
+    private String bank_manager_phone;     // 담당자 전화
+    private String bank_manager_fax;       // 담당자 팩스
+
+    // 취소
+    private String canceled_reason;        // 취소 사유
+
+    // ===== 대출실행 정산 (6단계 핵심) =====
+    // 중도금 (원금 + 이자, 중도금 대출은행 계좌)
+    private Long settle_middle_principal;
+    private Long settle_middle_interest;
+    private String settle_middle_bank;
+    private String settle_middle_account;
+
+    // 분양잔금 (원금 + 이자, 시행사 계좌)
+    private Long settle_balance_principal;
+    private Long settle_balance_interest;
+    private String settle_balance_account;
+
+    // 발코니 확장 / 유상옵션 / 보증수수료 (시행사 계좌)
+    private Long settle_balcony;            // 발코니 확장
+    private Long settle_options;            // 유상옵션
+    private Long settle_guarantee_fee;      // 보증수수료(대납이자)
+
+    // 선수관리비 (관리사무소 계좌)
+    private Long settle_mgmt_fee;
+    private String settle_mgmt_account;
+
+    // 이주비 (이주비 은행 계좌)
+    private Long settle_moving_allowance;
+    private String settle_moving_bank;
+    private String settle_moving_account;
+
+    // 인지대 (정액)
+    private Long settle_stamp_duty;              // 인지대(대출)
+    private Long settle_stamp_duty_additional;   // 인지대(추가대출)
+
+    // 실행 완료 플래그 (execution 단계 내부 상태)
+    private Boolean execution_completed;
+
+    // 타임스탬프 메모 로그 (누적 text, "YYYY-MM-DD HH:mm | user | message\n" 형식)
+    @Column(name = "memo_log", columnDefinition = "text")
+    private String memo_log;
+
     // Getters and Setters - 기본
     public UUID getId() { return id; }
     public String getResident_name() { return resident_name; }
@@ -201,4 +264,85 @@ public class ConsultationRequest {
     public void setCredit_score(Integer v) { this.credit_score = v; }
     public Long getSale_price_amount() { return sale_price_amount; }
     public void setSale_price_amount(Long v) { this.sale_price_amount = v; }
+
+    // ===== v3 확장 필드 Getters/Setters =====
+    public LocalDate getMoving_in_date() { return moving_in_date; }
+    public void setMoving_in_date(LocalDate v) { this.moving_in_date = v; }
+    public String getSpouse_phone() { return spouse_phone; }
+    public void setSpouse_phone(String v) { this.spouse_phone = v; }
+
+    public Long getApproved_amount() { return approved_amount; }
+    public void setApproved_amount(Long v) { this.approved_amount = v; }
+    public String getApproved_rate() { return approved_rate; }
+    public void setApproved_rate(String v) { this.approved_rate = v; }
+    @JsonProperty("approved_notified_at")
+    public OffsetDateTime getApproved_notified_at() { return approved_notified_at; }
+    public void setApproved_notified_at(OffsetDateTime v) { this.approved_notified_at = v; }
+    @JsonProperty("customer_accepted_at")
+    public OffsetDateTime getCustomer_accepted_at() { return customer_accepted_at; }
+    public void setCustomer_accepted_at(OffsetDateTime v) { this.customer_accepted_at = v; }
+
+    public LocalDate getSigning_date() { return signing_date; }
+    public void setSigning_date(LocalDate v) { this.signing_date = v; }
+    public String getSigning_time() { return signing_time; }
+    public void setSigning_time(String v) { this.signing_time = v; }
+
+    public Long getAdditional_loan_amount() { return additional_loan_amount; }
+    public void setAdditional_loan_amount(Long v) { this.additional_loan_amount = v; }
+    public String getBank_branch() { return bank_branch; }
+    public void setBank_branch(String v) { this.bank_branch = v; }
+    public String getBank_manager_phone() { return bank_manager_phone; }
+    public void setBank_manager_phone(String v) { this.bank_manager_phone = v; }
+    public String getBank_manager_fax() { return bank_manager_fax; }
+    public void setBank_manager_fax(String v) { this.bank_manager_fax = v; }
+
+    public String getCanceled_reason() { return canceled_reason; }
+    public void setCanceled_reason(String v) { this.canceled_reason = v; }
+
+    // 정산 필드
+    public Long getSettle_middle_principal() { return settle_middle_principal; }
+    public void setSettle_middle_principal(Long v) { this.settle_middle_principal = v; }
+    public Long getSettle_middle_interest() { return settle_middle_interest; }
+    public void setSettle_middle_interest(Long v) { this.settle_middle_interest = v; }
+    public String getSettle_middle_bank() { return settle_middle_bank; }
+    public void setSettle_middle_bank(String v) { this.settle_middle_bank = v; }
+    public String getSettle_middle_account() { return settle_middle_account; }
+    public void setSettle_middle_account(String v) { this.settle_middle_account = v; }
+
+    public Long getSettle_balance_principal() { return settle_balance_principal; }
+    public void setSettle_balance_principal(Long v) { this.settle_balance_principal = v; }
+    public Long getSettle_balance_interest() { return settle_balance_interest; }
+    public void setSettle_balance_interest(Long v) { this.settle_balance_interest = v; }
+    public String getSettle_balance_account() { return settle_balance_account; }
+    public void setSettle_balance_account(String v) { this.settle_balance_account = v; }
+
+    public Long getSettle_balcony() { return settle_balcony; }
+    public void setSettle_balcony(Long v) { this.settle_balcony = v; }
+    public Long getSettle_options() { return settle_options; }
+    public void setSettle_options(Long v) { this.settle_options = v; }
+    public Long getSettle_guarantee_fee() { return settle_guarantee_fee; }
+    public void setSettle_guarantee_fee(Long v) { this.settle_guarantee_fee = v; }
+
+    public Long getSettle_mgmt_fee() { return settle_mgmt_fee; }
+    public void setSettle_mgmt_fee(Long v) { this.settle_mgmt_fee = v; }
+    public String getSettle_mgmt_account() { return settle_mgmt_account; }
+    public void setSettle_mgmt_account(String v) { this.settle_mgmt_account = v; }
+
+    public Long getSettle_moving_allowance() { return settle_moving_allowance; }
+    public void setSettle_moving_allowance(Long v) { this.settle_moving_allowance = v; }
+    public String getSettle_moving_bank() { return settle_moving_bank; }
+    public void setSettle_moving_bank(String v) { this.settle_moving_bank = v; }
+    public String getSettle_moving_account() { return settle_moving_account; }
+    public void setSettle_moving_account(String v) { this.settle_moving_account = v; }
+
+    public Long getSettle_stamp_duty() { return settle_stamp_duty; }
+    public void setSettle_stamp_duty(Long v) { this.settle_stamp_duty = v; }
+    public Long getSettle_stamp_duty_additional() { return settle_stamp_duty_additional; }
+    public void setSettle_stamp_duty_additional(Long v) { this.settle_stamp_duty_additional = v; }
+
+    public Boolean getExecution_completed() { return execution_completed; }
+    public void setExecution_completed(Boolean v) { this.execution_completed = v; }
+
+    public String getMemo_log() { return memo_log; }
+    public void setMemo_log(String v) { this.memo_log = v; }
 }

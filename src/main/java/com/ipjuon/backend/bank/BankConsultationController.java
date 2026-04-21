@@ -124,6 +124,43 @@ public class BankConsultationController {
         if (req.getCredit_score_type() != null) existing.setCredit_score_type(req.getCredit_score_type());
         if (req.getCredit_score() != null) existing.setCredit_score(req.getCredit_score());
         if (req.getSale_price_amount() != null) existing.setSale_price_amount(req.getSale_price_amount());
+
+        // ===== v3 확장 필드 =====
+        if (req.getMoving_in_date() != null) existing.setMoving_in_date(req.getMoving_in_date());
+        if (req.getSpouse_phone() != null) existing.setSpouse_phone(req.getSpouse_phone());
+        if (req.getApproved_amount() != null) existing.setApproved_amount(req.getApproved_amount());
+        if (req.getApproved_rate() != null) existing.setApproved_rate(req.getApproved_rate());
+        if (req.getApproved_notified_at() != null) existing.setApproved_notified_at(req.getApproved_notified_at());
+        if (req.getCustomer_accepted_at() != null) existing.setCustomer_accepted_at(req.getCustomer_accepted_at());
+        if (req.getSigning_date() != null) existing.setSigning_date(req.getSigning_date());
+        if (req.getSigning_time() != null) existing.setSigning_time(req.getSigning_time());
+        if (req.getAdditional_loan_amount() != null) existing.setAdditional_loan_amount(req.getAdditional_loan_amount());
+        if (req.getBank_branch() != null) existing.setBank_branch(req.getBank_branch());
+        if (req.getBank_manager_phone() != null) existing.setBank_manager_phone(req.getBank_manager_phone());
+        if (req.getBank_manager_fax() != null) existing.setBank_manager_fax(req.getBank_manager_fax());
+        if (req.getCanceled_reason() != null) existing.setCanceled_reason(req.getCanceled_reason());
+
+        // 정산 (6단계 대출실행)
+        if (req.getSettle_middle_principal() != null) existing.setSettle_middle_principal(req.getSettle_middle_principal());
+        if (req.getSettle_middle_interest() != null) existing.setSettle_middle_interest(req.getSettle_middle_interest());
+        if (req.getSettle_middle_bank() != null) existing.setSettle_middle_bank(req.getSettle_middle_bank());
+        if (req.getSettle_middle_account() != null) existing.setSettle_middle_account(req.getSettle_middle_account());
+        if (req.getSettle_balance_principal() != null) existing.setSettle_balance_principal(req.getSettle_balance_principal());
+        if (req.getSettle_balance_interest() != null) existing.setSettle_balance_interest(req.getSettle_balance_interest());
+        if (req.getSettle_balance_account() != null) existing.setSettle_balance_account(req.getSettle_balance_account());
+        if (req.getSettle_balcony() != null) existing.setSettle_balcony(req.getSettle_balcony());
+        if (req.getSettle_options() != null) existing.setSettle_options(req.getSettle_options());
+        if (req.getSettle_guarantee_fee() != null) existing.setSettle_guarantee_fee(req.getSettle_guarantee_fee());
+        if (req.getSettle_mgmt_fee() != null) existing.setSettle_mgmt_fee(req.getSettle_mgmt_fee());
+        if (req.getSettle_mgmt_account() != null) existing.setSettle_mgmt_account(req.getSettle_mgmt_account());
+        if (req.getSettle_moving_allowance() != null) existing.setSettle_moving_allowance(req.getSettle_moving_allowance());
+        if (req.getSettle_moving_bank() != null) existing.setSettle_moving_bank(req.getSettle_moving_bank());
+        if (req.getSettle_moving_account() != null) existing.setSettle_moving_account(req.getSettle_moving_account());
+        if (req.getSettle_stamp_duty() != null) existing.setSettle_stamp_duty(req.getSettle_stamp_duty());
+        if (req.getSettle_stamp_duty_additional() != null) existing.setSettle_stamp_duty_additional(req.getSettle_stamp_duty_additional());
+        if (req.getExecution_completed() != null) existing.setExecution_completed(req.getExecution_completed());
+        if (req.getMemo_log() != null) existing.setMemo_log(req.getMemo_log());
+
         if (req.getLoan_status() != null) {
             String oldStatus = existing.getLoan_status();
             String newStatus = req.getLoan_status();
