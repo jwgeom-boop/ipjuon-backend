@@ -40,7 +40,10 @@ public class ConsultationRequest {
 
     // 은행 상담사 입력 필드
     private String resident_no;       // 주민등록번호 (채무자)
-    private String manager;           // 담당
+    private String manager;           // 담당 (표시명, legacy — assignee_vendor_id 우선)
+
+    @Column(name = "assignee_vendor_id")
+    private UUID assignee_vendor_id;  // 담당 상담사 vendor.id FK (2026-04-24)
     private String transfer_date;     // 전매일
     private String division;          // 구분 (조합/일반)
     private String ownership;         // 명의 (단독/공동)
@@ -194,6 +197,8 @@ public class ConsultationRequest {
     public void setResident_no(String v) { this.resident_no = v; }
     public String getManager() { return manager; }
     public void setManager(String v) { this.manager = v; }
+    public UUID getAssignee_vendor_id() { return assignee_vendor_id; }
+    public void setAssignee_vendor_id(UUID v) { this.assignee_vendor_id = v; }
     public String getTransfer_date() { return transfer_date; }
     public void setTransfer_date(String v) { this.transfer_date = v; }
     public String getDivision() { return division; }

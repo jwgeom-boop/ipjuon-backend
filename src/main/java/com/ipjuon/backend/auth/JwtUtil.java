@@ -25,6 +25,10 @@ public class JwtUtil {
     }
 
     public String generate(String loginId, String role, String bankName) {
+        return generate(loginId, role, bankName, null);
+    }
+
+    public String generate(String loginId, String role, String bankName, String bankRole) {
         var builder = Jwts.builder()
                 .subject(loginId)
                 .claim("role", role)
@@ -32,6 +36,7 @@ public class JwtUtil {
                 .expiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(key);
         if (bankName != null) builder.claim("bank_name", bankName);
+        if (bankRole != null) builder.claim("bank_role", bankRole);
         return builder.compact();
     }
 

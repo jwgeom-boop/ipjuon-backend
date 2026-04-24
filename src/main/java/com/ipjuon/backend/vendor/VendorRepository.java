@@ -10,4 +10,6 @@ public interface VendorRepository extends JpaRepository<Vendor, UUID> {
     Optional<Vendor> findByLoginId(String loginId);
     boolean existsByLoginId(String loginId);
     Optional<Vendor> findByVendorName(String vendorName);
+    List<Vendor> findAllByParentVendorId(UUID parentVendorId);
+    Optional<Vendor> findByVendorNameAndBankManager(String vendorName, String bankManager);
 }

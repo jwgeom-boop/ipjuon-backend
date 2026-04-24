@@ -31,6 +31,21 @@ public class Vendor {
 
     private String status = "active";
 
+    // 역할 분리 (2026-04-24): bank_manager / bank_consultant / null(legacy)
+    private String role;
+
+    // 상담사 → 팀장 FK (팀장 본인은 null)
+    @Column(name = "parent_vendor_id")
+    private UUID parentVendorId;
+
+    // 퇴사 시 false (계정 삭제 대신 비활성화)
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
+    // 최초 로그인 시 비번 변경 강제
+    @Column(name = "must_change_password")
+    private Boolean mustChangePassword = false;
+
     @CreationTimestamp
     @Column(name = "created_at")
     private OffsetDateTime createdAt;
@@ -52,5 +67,13 @@ public class Vendor {
     public void setBankManager(String bankManager) { this.bankManager = bankManager; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
+    public UUID getParentVendorId() { return parentVendorId; }
+    public void setParentVendorId(UUID parentVendorId) { this.parentVendorId = parentVendorId; }
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public Boolean getMustChangePassword() { return mustChangePassword; }
+    public void setMustChangePassword(Boolean mustChangePassword) { this.mustChangePassword = mustChangePassword; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
 }

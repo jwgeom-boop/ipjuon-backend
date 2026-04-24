@@ -10,6 +10,9 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class DataInitializer implements CommandLineRunner {
@@ -29,6 +32,7 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         initBankVendors();
+        initBankConsultants();
         initSampleConsultations();
     }
 
@@ -54,28 +58,213 @@ public class DataInitializer implements CommandLineRunner {
             v.setVendorType("은행");
             v.setPhone(b[3]);
             v.setStatus("active"); // 항상 활성화
+            v.setRole("bank_manager");
+            v.setParentVendorId(null);
+            v.setIsActive(true);
+            v.setMustChangePassword(false);
             vendorRepository.save(v);
         }
         System.out.println("✅ 은행 계정 " + banks.length + "개 리셋 완료 (status=active, 기본 비밀번호)");
     }
 
-    // ── 샘플 상담 데이터 초기화 ──
-    private void initSampleConsultations() {
-        long bankCount = repository.findAllBankConsultations().stream()
-                .filter(r -> r.getManager() != null)
-                .count();
-        // 53건 미만이면 전체 seed 데이터 삭제 후 재삽입 (시드 마커: special_notes = "SEED")
-        if (bankCount >= 53) return;
+    // ── 은행 상담사 계정 초기화 ──
+    // 명명 규칙: 팀장 = `{은행키}`, 상담사 = `{은행키}{NN}` (예: shinhan01)
+    // 프론트 parseBankLoginId() 정규식 ^([a-z]+)(\d{2})$ 와 일치해야 함
+    private void initBankConsultants() {
+        // {bankKey, vendorName, phone}
+        String[][] banks = {
+            {"shinhan", "신한은행",    "02-1599-8000"},
+            {"hana",    "하나은행",    "02-1599-1111"},
+            {"kb",      "KB국민은행",  "02-1588-9999"},
+            {"woori",   "우리은행",    "02-1588-5000"},
+            {"nh",      "NH농협은행",  "02-1588-2100"},
+            {"ibk",     "IBK기업은행", "02-1588-2588"},
+            {"busan",   "부산은행",    "02-1588-6200"},
+            {"daegu",   "대구은행",    "02-1588-5050"},
+        };
+        // 프론트 DEMO_ASSIGNEE_BY_NO 매핑과 일치
+        String[] consultantNames = {"김주임", "이대리", "박과장"};
 
-        // 기존 SEED 데이터만 삭제 (실제 운영 데이터는 보존)
+        int seeded = 0;
+        for (String[] b : banks) {
+            // 팀장 vendor 조회 (parent_vendor_id 세팅용)
+            Vendor manager = vendorRepository.findByLoginId(b[0]).orElse(null);
+            UUID managerId = manager != null ? manager.getId() : null;
+            for (int i = 1; i <= consultantNames.length; i++) {
+                String loginId = String.format("%s%02d", b[0], i);
+                String displayName = consultantNames[i - 1];
+                Vendor v = vendorRepository.findByLoginId(loginId).orElseGet(Vendor::new);
+                v.setLoginId(loginId);
+                v.setPassword(passwordEncoder.encode(loginId + "_2024!"));
+                v.setVendorName(b[1]);
+                v.setVendorType("은행상담사");
+                v.setBankManager(displayName); // 담당자 표시명
+                v.setPhone(b[2]);
+                v.setStatus("active");
+                v.setRole("bank_consultant");
+                v.setParentVendorId(managerId);
+                v.setIsActive(true);
+                v.setMustChangePassword(false); // 데모 단계에선 변경 강제 X
+                vendorRepository.save(v);
+                seeded++;
+            }
+        }
+        System.out.println("✅ 은행 상담사 계정 " + seeded + "개 리셋 완료 (예: shinhan01 / shinhan01_2024!)");
+    }
+
+    // ── 샘플 상담 데이터 초기화 ──
+    // SEED 마커가 붙은 데이터는 매 시작마다 삭제 후 재삽입 (manager 로테이션 + assignee_vendor_id 백필 보장).
+    // SEED 마커가 없는 운영 데이터는 보존.
+    //
+    // 생성 규칙: 8은행 × 3상담사 × 9템플릿(7활성+2완료) + 은행당 취소 1건 = 224건
+    // → 각 상담사: 7건 활성 + 2건 완료 (HomeInbox 데모용 충분한 양)
+    // → 각 팀장(은행): 21건 활성 + 6건 완료 + 1건 취소
+    private void initSampleConsultations() {
         repository.findAllBankConsultations().stream()
                 .filter(r -> "SEED".equals(r.getSpecial_notes()))
                 .forEach(r -> repository.deleteById(r.getId()));
 
         LocalDate today = LocalDate.now();
 
-        // v3 9단계 파이프라인: apply(신청) → consulting(상담) → reviewing(가심사) → result(결과안내) → signing_reservation(자서예약) → signing(자서) → executing(대출실행) → done(완료) / cancel(취소)
-        // stageOffset: 현재 단계 진입 후 경과일 (음수, 체류일 경고 테스트용)
+        String[] BANK_NAMES = {
+            "신한은행", "하나은행", "KB국민은행", "우리은행",
+            "NH농협은행", "IBK기업은행", "부산은행", "대구은행"
+        };
+        String[] CONSULTANTS = {"김주임", "이대리", "박과장"};
+
+        // 한국 이름 풀 (성 20 × 이름 30, gcd(7,30)=1 / gcd(13,20)=1로 균등 분포)
+        String[] LAST_NAMES = {"김","이","박","최","정","강","조","윤","장","임","한","오","서","신","권","황","안","송","전","홍"};
+        String[] FIRST_NAMES = {
+            "민준","서연","도윤","지우","서준","지유","주원","하은","예준","수아",
+            "시우","지민","건우","유나","현우","예린","우진","다은","지호","수빈",
+            "선우","예나","민서","지윤","준서","서영","지환","유진","동현","가은"
+        };
+
+        // 단계 템플릿: {loan_status, recOffset, execOffset, docOffset, stageOffset, memo}
+        Object[][] STAGE_TEMPLATES = {
+            {"apply",                -1,   null, null, -1,  "신규 접수, 상담 예약 필요"},
+            {"consulting",           -4,   null, null, -2,  "서류 안내 중"},
+            {"reviewing",            -9,   null, -4,   -3,  null},
+            {"result",               -12,  null, -8,   -1,  "승인, 고객 통보 필요"},
+            {"signing_reservation",  -14,  null, -10,  -2,  "자서일 확정"},
+            {"signing",              -16,  null, -12,  -1,  "자서 완료, 실행 대기"},
+            {"executing",            -18,  0,    -10,  -2,  "오늘 실행 예정"},
+            {"done",                 -32,  -22,  -27,  -22, null},
+            {"done",                 -45,  -35,  -40,  -35, null}
+        };
+
+        String[] DIVISIONS  = {"조합", "일반"};
+        String[] OWNERSHIPS = {"단독", "공동"};
+        String[] APT_TYPES  = {"59", "71", "84"};
+        String[] PRODUCTS   = {"고정", "변동"};
+
+        Map<String, UUID> consultantIdCache = new HashMap<>();
+        int seq = 0;
+
+        for (String bankName : BANK_NAMES) {
+            for (String displayName : CONSULTANTS) {
+                final String fBankName = bankName;
+                final String fDisplayName = displayName;
+                UUID consultantId = consultantIdCache.computeIfAbsent(bankName + "|" + displayName, k ->
+                    vendorRepository.findByVendorNameAndBankManager(fBankName, fDisplayName)
+                            .map(Vendor::getId).orElse(null));
+
+                for (Object[] tpl : STAGE_TEMPLATES) {
+                    String name  = LAST_NAMES[(seq * 13) % LAST_NAMES.length]
+                                 + FIRST_NAMES[(seq * 7) % FIRST_NAMES.length];
+                    String phone = String.format("010-%04d-%04d",
+                                                 1000 + (seq * 13) % 9000,
+                                                 1000 + (seq * 17) % 9000);
+                    String dong  = String.valueOf(101 + (seq % 30));
+                    String ho    = String.valueOf((1 + seq % 18) * 100 + (1 + seq % 4));
+                    long amount  = 200_000_000L + ((seq % 20) * 10_000_000L);
+
+                    ConsultationRequest r = new ConsultationRequest();
+                    r.setResident_name(name);
+                    r.setResident_phone(phone);
+                    r.setVendor_name(bankName);
+                    r.setVendor_type("은행");
+                    r.setComplex_name("창원힐스테이트");
+                    r.setDong(dong);
+                    r.setHo(ho);
+                    r.setManager(displayName);
+                    r.setAssignee_vendor_id(consultantId);
+                    r.setDivision(DIVISIONS[seq % 2]);
+                    r.setOwnership(OWNERSHIPS[(seq / 2) % 2]);
+                    r.setApt_type(APT_TYPES[seq % 3]);
+                    r.setProduct(PRODUCTS[(seq / 3) % 2]);
+                    r.setLoan_status((String) tpl[0]);
+                    r.setLoan_amount(amount);
+
+                    Integer recOffset   = (Integer) tpl[1];
+                    Integer execOffset  = (Integer) tpl[2];
+                    Integer docOffset   = (Integer) tpl[3];
+                    Integer stageOffset = (Integer) tpl[4];
+                    if (recOffset != null)   r.setReceive_date(today.plusDays(recOffset));
+                    if (execOffset != null)  r.setExecution_date(today.plusDays(execOffset));
+                    if (docOffset != null)   r.setDocument_date(today.plusDays(docOffset));
+                    if (stageOffset != null) r.setStage_changed_at(OffsetDateTime.now().plusDays(stageOffset));
+
+                    r.setMemo((String) tpl[5]);
+                    r.setSpecial_notes("SEED");
+                    r.setStatus("대기중");
+                    r.setPreferred_time("오전");
+                    r.setLoan_period("30년");
+                    r.setRepayment_method("원리금균등");
+                    repository.save(r);
+                    seq++;
+                }
+            }
+        }
+
+        // 은행당 취소 1건 (상담사 로테이션)
+        int cancelIdx = 0;
+        for (String bankName : BANK_NAMES) {
+            String displayName = CONSULTANTS[cancelIdx % CONSULTANTS.length];
+            UUID consultantId = consultantIdCache.get(bankName + "|" + displayName);
+
+            String name = LAST_NAMES[(seq * 13) % LAST_NAMES.length]
+                        + FIRST_NAMES[(seq * 7) % FIRST_NAMES.length];
+
+            ConsultationRequest r = new ConsultationRequest();
+            r.setResident_name(name);
+            r.setResident_phone(String.format("010-%04d-9999", 1000 + cancelIdx * 100));
+            r.setVendor_name(bankName);
+            r.setVendor_type("은행");
+            r.setComplex_name("창원힐스테이트");
+            r.setDong(String.valueOf(150 + cancelIdx));
+            r.setHo("1801");
+            r.setManager(displayName);
+            r.setAssignee_vendor_id(consultantId);
+            r.setDivision(DIVISIONS[cancelIdx % 2]);
+            r.setOwnership("단독");
+            r.setApt_type("84");
+            r.setProduct("고정");
+            r.setLoan_status("cancel");
+            r.setLoan_amount(280_000_000L);
+            r.setReceive_date(today.minusDays(25));
+            r.setStage_changed_at(OffsetDateTime.now().minusDays(15));
+            r.setMemo(cancelIdx % 2 == 0 ? "고객 사정으로 취소" : "심사 부결 후 취소");
+            r.setSpecial_notes("SEED");
+            r.setStatus("대기중");
+            r.setPreferred_time("오전");
+            r.setLoan_period("30년");
+            r.setRepayment_method("원리금균등");
+            repository.save(r);
+            cancelIdx++;
+            seq++;
+        }
+
+        int total = BANK_NAMES.length * CONSULTANTS.length * STAGE_TEMPLATES.length + BANK_NAMES.length;
+        System.out.println("✅ 샘플 데이터 " + total + "건 삽입 완료 (은행 "
+            + BANK_NAMES.length + " × 상담사 " + CONSULTANTS.length
+            + " × 단계 " + STAGE_TEMPLATES.length + " + 취소 " + BANK_NAMES.length + ")");
+    }
+
+    // 사용하지 않는 옛 하드코딩 시드 (참고용 보존, 실제 호출 안 함)
+    @SuppressWarnings("unused")
+    private void initSampleConsultationsLegacy() {
+        LocalDate today = LocalDate.now();
         Object[][] samples = {
             // {name, phone, bank, dong, ho, manager, division, ownership, apt_type, product, loan_status, loan_amount, receiveOffset, execOffset, docOffset, stageOffset, memo}
 
@@ -151,6 +340,12 @@ public class DataInitializer implements CommandLineRunner {
             {"류가영", "010-5858-0000", "하나은행",   "144", "1502", "박민수", "일반", "단독", "71", "변동", "cancel", 260000000L,  -20, null, -15, -10, "심사 부결 후 취소"},
         };
 
+        // 데모용: 시드 데이터의 manager를 상담사 displayName(김주임/이대리/박과장)으로 로테이션 덮어쓰기.
+        // 프론트 lockAssignee가 본인(예: shinhan01 → 김주임) 건만 필터하려면 manager가 displayName이어야 함.
+        String[] CONSULTANT_NAMES = {"김주임", "이대리", "박과장"};
+        // assignee_vendor_id 백필용 캐시: (vendorName, displayName) -> vendor.id
+        Map<String, UUID> consultantIdCache = new HashMap<>();
+        int rowIdx = 0;
         for (Object[] s : samples) {
             ConsultationRequest r = new ConsultationRequest();
             r.setResident_name((String) s[0]);
@@ -160,7 +355,17 @@ public class DataInitializer implements CommandLineRunner {
             r.setComplex_name("창원힐스테이트");
             r.setDong((String) s[3]);
             r.setHo((String) s[4]);
-            r.setManager((String) s[5]);
+            String displayName = CONSULTANT_NAMES[rowIdx++ % CONSULTANT_NAMES.length];
+            r.setManager(displayName);
+            // assignee_vendor_id FK 세팅
+            String bankName = (String) s[2];
+            String cacheKey = bankName + "|" + displayName;
+            UUID consultantId = consultantIdCache.computeIfAbsent(cacheKey, k ->
+                vendorRepository.findByVendorNameAndBankManager(bankName, displayName)
+                        .map(Vendor::getId)
+                        .orElse(null)
+            );
+            r.setAssignee_vendor_id(consultantId);
             r.setDivision((String) s[6]);
             r.setOwnership((String) s[7]);
             r.setApt_type((String) s[8]);
@@ -187,3 +392,4 @@ public class DataInitializer implements CommandLineRunner {
         System.out.println("✅ 샘플 데이터 " + samples.length + "건 삽입 완료 (v3 9단계: apply/consulting/reviewing/result/signing_reservation/signing/executing/done/cancel)");
     }
 }
+

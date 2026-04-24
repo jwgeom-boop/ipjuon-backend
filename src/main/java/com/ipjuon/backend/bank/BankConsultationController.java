@@ -79,10 +79,134 @@ public class BankConsultationController {
         return all;
     }
 
+    // 본인 담당 건만 조회 (JWT loginId 기반).
+    // - 팀장(bank_manager): vendor_name 매칭, 전체 (assignee 무관)
+    // - 상담사(bank_consultant): assignee_vendor_id == 본인 id (legacy 데이터는 manager displayName 매칭으로 폴백)
+    // - cancel/done은 기본 제외 (?include_done=true 시 포함)
+    @GetMapping("/consultations/mine")
+    public List<ConsultationRequest> getMine(
+            jakarta.servlet.http.HttpServletRequest request,
+            @RequestParam(name = "include_done", required = false, defaultValue = "false") boolean includeDone
+    ) {
+        String loginId = (String) request.getAttribute("auth.loginId");
+        if (loginId == null) return java.util.Collections.emptyList();
+        Vendor v = vendorRepository.findByLoginId(loginId).orElse(null);
+        if (v == null) return java.util.Collections.emptyList();
+
+        // role 결정: vendor.role > vendorType 폴백
+        String bankRole = v.getRole();
+        if (bankRole == null || bankRole.isEmpty()) {
+            bankRole = "은행상담사".equals(v.getVendorType()) ? "bank_consultant" : "bank_manager";
+        }
+
+        List<ConsultationRequest> list;
+        if ("bank_consultant".equals(bankRole)) {
+            // 상담사: assignee_vendor_id 우선, 없으면 manager displayName 폴백
+            UUID myId = v.getId();
+            String myName = v.getBankManager();
+            list = repository.findBankConsultationsByVendorName(v.getVendorName()).stream()
+                    .filter(r -> {
+                        if (r.getAssignee_vendor_id() != null) return myId.equals(r.getAssignee_vendor_id());
+                        return myName != null && myName.equals(r.getManager()); // legacy
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            // 팀장: 은행 전체
+            list = repository.findBankConsultationsByVendorName(v.getVendorName());
+        }
+
+        if (!includeDone) {
+            list = list.stream()
+                    .filter(r -> !"done".equals(r.getLoan_status()) && !"cancel".equals(r.getLoan_status()))
+                    .collect(Collectors.toList());
+        }
+        return list;
+    }
+
+    // 팀장이 본인 팀의 상담사 목록 조회 (대리 접속 화면용).
+    @GetMapping("/team/consultants")
+    public List<Map<String, Object>> getTeamConsultants(jakarta.servlet.http.HttpServletRequest request) {
+        String loginId = (String) request.getAttribute("auth.loginId");
+        if (loginId == null) return java.util.Collections.emptyList();
+        Vendor manager = vendorRepository.findByLoginId(loginId).orElse(null);
+        if (manager == null) return java.util.Collections.emptyList();
+
+        // role 가드: bank_manager만 허용
+        String role = manager.getRole();
+        if (role == null) role = "은행상담사".equals(manager.getVendorType()) ? "bank_consultant" : "bank_manager";
+        if (!"bank_manager".equals(role)) return java.util.Collections.emptyList();
+
+        return vendorRepository.findAllByParentVendorId(manager.getId()).stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsActive()) || c.getIsActive() == null)
+                .map(c -> {
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("id", c.getId());
+                    m.put("login_id", c.getLoginId());
+                    m.put("display_name", c.getBankManager());
+                    m.put("phone", c.getPhone());
+                    m.put("is_active", c.getIsActive());
+                    m.put("must_change_password", c.getMustChangePassword());
+                    return m;
+                })
+                .collect(Collectors.toList());
+    }
+
     // 단건 조회
     @GetMapping("/consultations/{id}")
     public ConsultationRequest getOne(@PathVariable UUID id) {
         return repository.findById(id).orElseThrow();
+    }
+
+    // 신규 상담 등록 (은행 상담사가 인박스에서 직접 등록).
+    // JWT loginId 로 vendor 조회 → vendor_name / assignee_vendor_id / manager 자동 세팅,
+    // loan_status="apply" 로 시작해서 인박스 "신규" 카테고리에 잡히도록 한다.
+    @PostMapping("/consultations")
+    public ResponseEntity<ConsultationRequest> create(
+            jakarta.servlet.http.HttpServletRequest request,
+            @RequestBody Map<String, Object> body
+    ) {
+        String loginId = (String) request.getAttribute("auth.loginId");
+        if (loginId == null) return ResponseEntity.status(401).build();
+        Vendor v = vendorRepository.findByLoginId(loginId).orElse(null);
+        if (v == null) return ResponseEntity.status(403).build();
+
+        ConsultationRequest c = new ConsultationRequest();
+        c.setVendor_name(v.getVendorName());
+        c.setVendor_type("bank"); // findBankConsultationsByVendorName 쿼리의 vendor_type IN ('은행','bank') 필터에 잡히도록.
+        c.setAssignee_vendor_id(v.getId());
+        c.setManager(v.getBankManager());
+        c.setLoan_status("apply");
+        c.setStage_changed_at(OffsetDateTime.now());
+        c.setReceive_date(LocalDate.now());
+
+        c.setResident_name(asString(body.get("resident_name")));
+        c.setResident_phone(asString(body.get("resident_phone")));
+        c.setComplex_name(asString(body.get("complex_name")));
+        c.setDong(asString(body.get("dong")));
+        c.setHo(asString(body.get("ho")));
+        c.setApt_type(asString(body.get("apt_type")));
+        c.setMemo(asString(body.get("memo")));
+        Long loanAmount = asLong(body.get("loan_amount"));
+        if (loanAmount != null) c.setLoan_amount(loanAmount);
+
+        ConsultationRequest saved = repository.save(c);
+        log.info("[은행 신규 등록] id: {}, 상담사: {}({}), 고객: {}",
+                saved.getId(), v.getBankManager(), loginId, saved.getResident_name());
+        return ResponseEntity.ok(saved);
+    }
+
+    private static String asString(Object o) {
+        if (o == null) return null;
+        String s = o.toString().trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    private static Long asLong(Object o) {
+        if (o == null) return null;
+        if (o instanceof Number) return ((Number) o).longValue();
+        String s = o.toString().replaceAll("[^0-9-]", "");
+        if (s.isEmpty()) return null;
+        try { return Long.parseLong(s); } catch (NumberFormatException e) { return null; }
     }
 
     // 은행 상담사 필드 저장/수정
@@ -230,6 +354,46 @@ public class BankConsultationController {
                 .contentType(MediaType.parseMediaType(
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(data);
+    }
+
+    // 은행별 집계 (관리자 대시보드용).
+    // 각 은행 vendor_name 별로 상담건수/실행건수/실행금액/대기건수를 한 번에 묶어서 반환.
+    // 프론트가 8회 호출하는 대신 1회로 처리할 수 있게 하기 위함.
+    @GetMapping("/summary/by-bank")
+    public List<Map<String, Object>> getSummaryByBank() {
+        List<ConsultationRequest> all = repository.findAllBankConsultations();
+
+        Map<String, List<ConsultationRequest>> grouped = all.stream()
+                .filter(r -> r.getVendor_name() != null && !r.getVendor_name().isEmpty())
+                .collect(Collectors.groupingBy(ConsultationRequest::getVendor_name));
+
+        return grouped.entrySet().stream()
+                .map(e -> {
+                    String bankName = e.getKey();
+                    List<ConsultationRequest> rows = e.getValue();
+                    long totalCount = rows.stream().filter(r -> !"cancel".equals(r.getLoan_status())).count();
+                    long doneCount = rows.stream().filter(r -> "done".equals(r.getLoan_status())).count();
+                    long doneAmount = rows.stream()
+                            .filter(r -> "done".equals(r.getLoan_status()) && r.getLoan_amount() != null)
+                            .mapToLong(ConsultationRequest::getLoan_amount).sum();
+                    long waitCount = rows.stream()
+                            .filter(r -> r.getLoan_status() == null || "wait".equals(r.getLoan_status()) || "apply".equals(r.getLoan_status()))
+                            .count();
+                    long todayCount = rows.stream().filter(r -> {
+                        if (r.getCreatedAt() == null) return false;
+                        return r.getCreatedAt().toLocalDate().equals(LocalDate.now());
+                    }).count();
+                    Map<String, Object> m = new java.util.HashMap<>();
+                    m.put("bank_name",   bankName);
+                    m.put("total_count", totalCount);
+                    m.put("done_count",  doneCount);
+                    m.put("done_amount", doneAmount);
+                    m.put("wait_count",  waitCount);
+                    m.put("today_count", todayCount);
+                    return m;
+                })
+                .sorted((a, b) -> Long.compare((Long) b.get("done_amount"), (Long) a.get("done_amount")))
+                .collect(Collectors.toList());
     }
 
     // 집계 현황

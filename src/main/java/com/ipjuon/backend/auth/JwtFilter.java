@@ -43,7 +43,13 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         String token = header.substring(7);
-        if (!jwtUtil.isValid(token)) {
+        try {
+            var claims = jwtUtil.parse(token);
+            request.setAttribute("auth.loginId", claims.getSubject());
+            request.setAttribute("auth.role", claims.get("role"));
+            request.setAttribute("auth.bankRole", claims.get("bank_role"));
+            request.setAttribute("auth.bankName", claims.get("bank_name"));
+        } catch (Exception e) {
             sendUnauthorized(response, "유효하지 않은 토큰입니다");
             return;
         }
