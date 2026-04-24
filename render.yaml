@@ -1,0 +1,36 @@
+# Render Blueprint
+# 사용법: 이 파일을 GitHub repo 루트에 두고 Render Dashboard → New → Blueprint → repo 선택
+# DB는 Supabase Postgres를 그대로 쓰므로 Render에서는 web service만 띄움
+
+services:
+  - type: web
+    name: ipjuon-backend
+    runtime: docker
+    plan: free            # cold start 30~60초. 실사용 시 starter($7/월)로 업그레이드
+    region: singapore     # 한국과 가장 가까운 free 리전
+    healthCheckPath: /api/auth/login   # 405여도 OK (Render는 200~499 모두 healthy)
+    envVars:
+      - key: DB_URL
+        sync: false       # 직접 입력 (예: jdbc:postgresql://aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres)
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION_HOURS
+        value: "8"
+      - key: ADMIN_USERNAME
+        value: ipjuon
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: BANK_USERNAME
+        value: bank
+      - key: BANK_PASSWORD
+        sync: false
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://supabase-connect-zeta.vercel.app,https://resident-connect-fhczxpr06-jwgeom-boops-projects.vercel.app,http://localhost:5173,http://localhost:8081"
+      - key: INVITE_B2C_APP_URL
+        value: https://ipjuon-app.vercel.app
+      - key: SOLAPI_ENABLED
+        value: "false"
