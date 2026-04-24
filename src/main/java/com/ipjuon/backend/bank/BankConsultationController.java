@@ -284,6 +284,7 @@ public class BankConsultationController {
         if (req.getSettle_stamp_duty_additional() != null) existing.setSettle_stamp_duty_additional(req.getSettle_stamp_duty_additional());
         if (req.getExecution_completed() != null) existing.setExecution_completed(req.getExecution_completed());
         if (req.getMemo_log() != null) existing.setMemo_log(req.getMemo_log());
+        if (req.getLast_sms_sent_at() != null) existing.setLast_sms_sent_at(req.getLast_sms_sent_at());
 
         if (req.getLoan_status() != null) {
             String oldStatus = existing.getLoan_status();

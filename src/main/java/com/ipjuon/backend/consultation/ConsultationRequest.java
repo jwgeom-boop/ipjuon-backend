@@ -149,6 +149,10 @@ public class ConsultationRequest {
     @Column(name = "memo_log", columnDefinition = "text")
     private String memo_log;
 
+    // 자서예약 SMS 안내문 마지막 발송(복사) 시각 — 팀장 대시보드에서 발송 누락 추적용
+    @Column(name = "last_sms_sent_at")
+    private OffsetDateTime last_sms_sent_at;
+
     // Getters and Setters - 기본
     public UUID getId() { return id; }
     public String getResident_name() { return resident_name; }
@@ -350,4 +354,8 @@ public class ConsultationRequest {
 
     public String getMemo_log() { return memo_log; }
     public void setMemo_log(String v) { this.memo_log = v; }
+
+    @JsonProperty("last_sms_sent_at")
+    public OffsetDateTime getLast_sms_sent_at() { return last_sms_sent_at; }
+    public void setLast_sms_sent_at(OffsetDateTime v) { this.last_sms_sent_at = v; }
 }
