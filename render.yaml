@@ -29,7 +29,7 @@ services:
       - key: BANK_PASSWORD
         sync: false
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://supabase-connect-zeta.vercel.app,https://resident-connect-fhczxpr06-jwgeom-boops-projects.vercel.app,http://localhost:5173,http://localhost:8081"
+        value: "https://supabase-connect-zeta.vercel.app,https://resident-connect-lac.vercel.app,https://ipjuon-app.vercel.app,http://localhost:5173,http://localhost:8080,http://localhost:8081"
       - key: INVITE_B2C_APP_URL
         value: https://ipjuon-app.vercel.app
       - key: SOLAPI_ENABLED
