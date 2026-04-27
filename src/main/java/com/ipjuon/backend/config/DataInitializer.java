@@ -11,6 +11,7 @@ import com.ipjuon.backend.vendor.VendorRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,7 +41,11 @@ public class DataInitializer implements CommandLineRunner {
         this.complexTemplateAptFeeRepository = complexTemplateAptFeeRepository;
     }
 
+    // @Transactional: initComplexTemplates() 의 @Modifying deleteByTemplateId 는
+    // 활성 트랜잭션 내에서만 실행 가능. CommandLineRunner.run() 은 Spring proxy 를 통해 호출되므로
+    // 여기에 붙이면 모든 시드 작업이 단일 트랜잭션에서 안전하게 수행된다.
     @Override
+    @Transactional
     public void run(String... args) {
         initBankVendors();
         initBankConsultants();
