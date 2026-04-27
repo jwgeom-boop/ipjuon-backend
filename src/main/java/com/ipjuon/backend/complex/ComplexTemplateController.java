@@ -28,15 +28,18 @@ public class ComplexTemplateController {
 
     private final ComplexTemplateRepository templateRepo;
     private final ComplexTemplateAptFeeRepository feeRepo;
+    private final ComplexSettlementItemRepository settlementRepo;
     private final ConsultationRepository consultationRepo;
     private final VendorRepository vendorRepo;
 
     public ComplexTemplateController(ComplexTemplateRepository templateRepo,
                                       ComplexTemplateAptFeeRepository feeRepo,
+                                      ComplexSettlementItemRepository settlementRepo,
                                       ConsultationRepository consultationRepo,
                                       VendorRepository vendorRepo) {
         this.templateRepo = templateRepo;
         this.feeRepo = feeRepo;
+        this.settlementRepo = settlementRepo;
         this.consultationRepo = consultationRepo;
         this.vendorRepo = vendorRepo;
     }
@@ -64,6 +67,7 @@ public class ComplexTemplateController {
         ComplexTemplate t = templateRepo.findById(id).orElseThrow();
         Map<String, Object> m = toMap(t);
         m.put("apt_fees", feeRepo.findByTemplateId(t.getId()));
+        m.put("settlement_items", settlementRepo.findByTemplateId(t.getId()));
         return m;
     }
 
@@ -76,6 +80,7 @@ public class ComplexTemplateController {
                 .map(t -> {
                     Map<String, Object> m = toMap(t);
                     m.put("apt_fees", feeRepo.findByTemplateId(t.getId()));
+                    m.put("settlement_items", settlementRepo.findByTemplateId(t.getId()));
                     return ResponseEntity.ok(m);
                 })
                 .orElse(ResponseEntity.notFound().build());
@@ -97,12 +102,14 @@ public class ComplexTemplateController {
 
         ComplexTemplate saved = templateRepo.save(t);
 
-        // 평형별 금액 동시 저장
+        // 평형별 금액 + 정산 항목 동시 저장
         replaceAptFees(saved.getId(), body.get("apt_fees"));
+        replaceSettlementItems(saved.getId(), body.get("settlement_items"));
 
         log.info("[단지 템플릿 등록] complex={}, by={}", saved.getComplex_name(), saved.getCreatedBy());
         Map<String, Object> result = toMap(saved);
         result.put("apt_fees", feeRepo.findByTemplateId(saved.getId()));
+        result.put("settlement_items", settlementRepo.findByTemplateId(saved.getId()));
         return ResponseEntity.ok(result);
     }
 
@@ -126,10 +133,14 @@ public class ComplexTemplateController {
         if (body.containsKey("apt_fees")) {
             replaceAptFees(saved.getId(), body.get("apt_fees"));
         }
+        if (body.containsKey("settlement_items")) {
+            replaceSettlementItems(saved.getId(), body.get("settlement_items"));
+        }
 
         log.info("[단지 템플릿 수정] complex={}, by={}", saved.getComplex_name(), saved.getUpdatedBy());
         Map<String, Object> result = toMap(saved);
         result.put("apt_fees", feeRepo.findByTemplateId(saved.getId()));
+        result.put("settlement_items", settlementRepo.findByTemplateId(saved.getId()));
         return ResponseEntity.ok(result);
     }
 
@@ -147,6 +158,7 @@ public class ComplexTemplateController {
             }
         }
         feeRepo.deleteByTemplateId(id);
+        settlementRepo.deleteByTemplateId(id);
         templateRepo.deleteById(id);
         log.info("[단지 템플릿 삭제] id={}", id);
         return ResponseEntity.ok(Map.of("deleted", true));
@@ -321,6 +333,31 @@ public class ComplexTemplateController {
             Integer displayOrder = asInt(row.get("display_order"));
             f.setDisplay_order(displayOrder != null ? displayOrder : order);
             feeRepo.save(f);
+            order++;
+        }
+    }
+
+    @Transactional
+    protected void replaceSettlementItems(UUID templateId, Object itemsObj) {
+        if (!(itemsObj instanceof List)) return;
+        settlementRepo.deleteByTemplateId(templateId);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rows = (List<Map<String, Object>>) itemsObj;
+        int order = 0;
+        for (Map<String, Object> row : rows) {
+            String category = asString(row.get("category"));
+            if (category == null) continue;   // category 비어 있으면 skip
+
+            ComplexSettlementItem s = new ComplexSettlementItem();
+            s.setTemplate_id(templateId);
+            s.setCategory(category);
+            s.setBank(asString(row.get("bank")));
+            s.setAccount(asString(row.get("account")));
+            s.setNote(asString(row.get("note")));
+            Integer displayOrder = asInt(row.get("display_order"));
+            s.setDisplay_order(displayOrder != null ? displayOrder : order);
+            settlementRepo.save(s);
             order++;
         }
     }

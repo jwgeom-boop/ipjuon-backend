@@ -6,6 +6,8 @@ import com.ipjuon.backend.bankprofile.ComplexBankProfile;
 import com.ipjuon.backend.bankprofile.ComplexBankProfileRepository;
 import com.ipjuon.backend.bankprofile.ComplexBankProfile;
 import com.ipjuon.backend.bankprofile.ComplexBankProfileRepository;
+import com.ipjuon.backend.complex.ComplexSettlementItem;
+import com.ipjuon.backend.complex.ComplexSettlementItemRepository;
 import com.ipjuon.backend.complex.ComplexTemplate;
 import com.ipjuon.backend.complex.ComplexTemplateAptFee;
 import com.ipjuon.backend.complex.ComplexTemplateAptFeeRepository;
@@ -23,6 +25,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -34,6 +37,7 @@ public class DataInitializer implements CommandLineRunner {
     private final BCryptPasswordEncoder passwordEncoder;
     private final ComplexTemplateRepository complexTemplateRepository;
     private final ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository;
+    private final ComplexSettlementItemRepository complexSettlementItemRepository;
     private final BankProfileRepository bankProfileRepository;
     private final ComplexBankProfileRepository complexBankProfileRepository;
 
@@ -42,6 +46,7 @@ public class DataInitializer implements CommandLineRunner {
                            BCryptPasswordEncoder passwordEncoder,
                            ComplexTemplateRepository complexTemplateRepository,
                            ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository,
+                           ComplexSettlementItemRepository complexSettlementItemRepository,
                            BankProfileRepository bankProfileRepository,
                            ComplexBankProfileRepository complexBankProfileRepository) {
         this.repository = repository;
@@ -49,6 +54,7 @@ public class DataInitializer implements CommandLineRunner {
         this.passwordEncoder = passwordEncoder;
         this.complexTemplateRepository = complexTemplateRepository;
         this.complexTemplateAptFeeRepository = complexTemplateAptFeeRepository;
+        this.complexSettlementItemRepository = complexSettlementItemRepository;
         this.bankProfileRepository = bankProfileRepository;
         this.complexBankProfileRepository = complexBankProfileRepository;
     }
@@ -246,6 +252,55 @@ public class DataInitializer implements CommandLineRunner {
             seeded++;
         }
         System.out.println("✅ 단지 템플릿 " + seeded + "개 시드 완료 (잠실 미성크로바 실데이터 + 5개 가상)");
+
+        // ─── 정산 항목 표 시드 (1번 이미지: 중도금/분양잔금/발코니/유상옵션/보증수수료/선수관리비/이주비/인지대 등) ───
+        // 단지마다 동일한 10개 카테고리. 단지 정보 있으면 일부 채움, 없으면 빈 값.
+        // 관리자가 직접 입력한 데이터는 보호 (이미 N건 있으면 skip).
+        String[][] defaultSettlementCategories = {
+            // {category, default_note}
+            {"중도금",            "원금"},
+            {"중도금이자",        "실행일확인"},
+            {"분양잔금",          "시행사 입금"},
+            {"발코니 확장",       "별매품1"},
+            {"유상옵션",          "별매품2"},
+            {"보증수수료",        "HUG/HF 대납이자"},
+            {"선수관리비",        "관리사무소"},
+            {"이주비",            ""},
+            {"인지대",            "수입인지"},
+            {"인지대 (추가대출)", ""},
+        };
+
+        int settlementSeeded = 0;
+        for (Object[] c : complexes) {
+            String name = (String) c[0];
+            ComplexTemplate t = complexTemplateRepository.findByComplex_name(name).orElse(null);
+            if (t == null) continue;
+            List<ComplexSettlementItem> existing = complexSettlementItemRepository.findByTemplateId(t.getId());
+            if (!existing.isEmpty()) continue;   // 관리자가 이미 입력 → 보호
+
+            int order = 0;
+            for (String[] cat : defaultSettlementCategories) {
+                ComplexSettlementItem s = new ComplexSettlementItem();
+                s.setTemplate_id(t.getId());
+                s.setCategory(cat[0]);
+                s.setNote(cat[1].isEmpty() ? null : cat[1]);
+                // 일부 카테고리는 단지 정보로 채움
+                if ("선수관리비".equals(cat[0])) {
+                    s.setBank(t.getMgmt_fee_bank());
+                    s.setAccount(t.getMgmt_fee_account());
+                } else if ("유상옵션".equals(cat[0])) {
+                    s.setBank(t.getGeneral_option_bank());
+                    s.setAccount(t.getGeneral_option_account());
+                } else if ("인지대".equals(cat[0])) {
+                    s.setBank("현금/수입인지");
+                    s.setAccount("—");
+                }
+                s.setDisplay_order(order++);
+                complexSettlementItemRepository.save(s);
+                settlementSeeded++;
+            }
+        }
+        System.out.println("✅ 단지 정산 항목 " + settlementSeeded + "개 시드 완료 (단지마다 기본 10개 - 이미 있으면 skip)");
     }
 
     // ── 은행 프로필 시드 (입주민 앱 카드 콘텐츠) ──
