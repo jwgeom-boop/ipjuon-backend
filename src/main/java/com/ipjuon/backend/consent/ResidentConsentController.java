@@ -75,10 +75,10 @@ public class ResidentConsentController {
         // 3) 각 은행에 ConsultationRequest 자동 생성 (loan_status=apply)
         List<UUID> createdConsultationIds = new ArrayList<>();
         List<String> deliveredBanks = new ArrayList<>();
+        // 동의서 자동 분배는 assignee_vendor_id / manager 표시명 모두 비워둠 →
+        // 팀장이 인박스에서 직접 상담사 배정. 팀장 vendor 조회 불필요
+        // (vendor_name 으로 팀장1+상담사3=4명 → NonUniqueResultException 발생함).
         for (BankProfile bp : openBanks) {
-            // 해당 은행의 팀장 vendor 찾기 (assignee 미지정 — 팀장이 분배)
-            Vendor manager = vendorRepo.findByVendorName(bp.getBank_name()).orElse(null);
-
             ConsultationRequest r = new ConsultationRequest();
             r.setResident_name(name);
             r.setResident_phone(phone);
@@ -94,8 +94,6 @@ public class ResidentConsentController {
             r.setStatus("대기중");
             r.setMemo("입주민 앱 동의서 제출 — 자동 분배");
             r.setSpecial_notes("CONSENT");
-            // assignee_vendor_id는 팀장이 직접 배정. manager 표시명만 (옵션)
-            if (manager != null) r.setManager(manager.getBankManager());
 
             ConsultationRequest saved = consultationRepo.save(r);
             createdConsultationIds.add(saved.getId());
