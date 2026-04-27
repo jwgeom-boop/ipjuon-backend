@@ -1,5 +1,9 @@
 package com.ipjuon.backend.config;
 
+import com.ipjuon.backend.complex.ComplexTemplate;
+import com.ipjuon.backend.complex.ComplexTemplateAptFee;
+import com.ipjuon.backend.complex.ComplexTemplateAptFeeRepository;
+import com.ipjuon.backend.complex.ComplexTemplateRepository;
 import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.vendor.Vendor;
@@ -8,6 +12,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
@@ -20,19 +25,26 @@ public class DataInitializer implements CommandLineRunner {
     private final ConsultationRepository repository;
     private final VendorRepository vendorRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final ComplexTemplateRepository complexTemplateRepository;
+    private final ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository;
 
     public DataInitializer(ConsultationRepository repository,
                            VendorRepository vendorRepository,
-                           BCryptPasswordEncoder passwordEncoder) {
+                           BCryptPasswordEncoder passwordEncoder,
+                           ComplexTemplateRepository complexTemplateRepository,
+                           ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository) {
         this.repository = repository;
         this.vendorRepository = vendorRepository;
         this.passwordEncoder = passwordEncoder;
+        this.complexTemplateRepository = complexTemplateRepository;
+        this.complexTemplateAptFeeRepository = complexTemplateAptFeeRepository;
     }
 
     @Override
     public void run(String... args) {
         initBankVendors();
         initBankConsultants();
+        initComplexTemplates();
         initSampleConsultations();
     }
 
@@ -112,6 +124,111 @@ public class DataInitializer implements CommandLineRunner {
         System.out.println("✅ 은행 상담사 계정 " + seeded + "개 리셋 완료 (예: shinhan01 / shinhan01_2024!)");
     }
 
+    // ── 단지 템플릿 시드 (입주안내문 정보) ──
+    // 6개 단지 등록: 잠실 미성크로바(실데이터) + 5개 가상.
+    // 매 부팅마다 갱신 (idempotent). 평형별 관리비 예치금도 같이 등록.
+    private void initComplexTemplates() {
+        Object[][] complexes = {
+            // {complex_name, mgmt_bank, mgmt_account, mgmt_holder, mgmt_office_phone, mgmt_office_fax,
+            //  general_option_bank, general_option_account, general_option_holder, stamp_duty}
+            {"잠실 미성크로바", "KB 국민은행", "064601-04-131949", "(주)케이티팝스",
+             "02-6956-6338", "02-6956-6339",
+             "국민", "465101-01-311967", "롯데건설㈜", 75000L},
+            {"봄여름가을겨울3차", "농협", "356-1102-3344-55", "관리사무소",
+             "051-891-1235", "051-256-3766",
+             "국민은행", "101437-04-002570", "시행사", 75000L},
+            {"포항학산더휴", "KB국민은행", "064-12-345678", "포항학산관리㈜",
+             "054-275-3300", "054-275-3301",
+             "신한은행", "110-456-789012", "더휴개발㈜", 75000L},
+            {"자이더테라스파크", "신한은행", "110-456-789012", "테라스관리㈜",
+             "031-555-7000", "031-555-7001",
+             "우리은행", "1002-345-678901", "GS건설㈜", 75000L},
+            {"힐스테이트포레스타", "하나은행", "234-910283-67890", "포레스타관리㈜",
+             "032-555-2200", "032-555-2201",
+             "KB국민은행", "987-654-321012", "현대건설㈜", 75000L},
+            {"창원 힐스테이트 마크로엔", "NH농협", "301-0123-4567-89", "마크로엔관리㈜",
+             "055-265-1100", "055-265-1101",
+             "KB국민은행", "765-432-101234", "현대건설㈜", 75000L},
+        };
+
+        // 평형별 관리비 예치금 — 단지명 기준
+        Map<String, long[][]> aptFeesByComplex = new HashMap<>();
+        // 잠실 미성크로바: PDF 17개 평형 그대로
+        aptFeesByComplex.put("잠실 미성크로바", new long[][]{
+            {45, 307000}, {51, 346000},
+            // 59A/59B/74A/74B/74C 등 영문 suffix는 string 처리 — 별도 메서드로
+        });
+        // 위 long[][]은 숫자만 가능 → 별도 List<Object[]>로 처리
+        Map<String, Object[][]> aptFees = new HashMap<>();
+        aptFees.put("잠실 미성크로바", new Object[][]{
+            {"45", 307000L}, {"51", 346000L}, {"59A", 377000L}, {"59B", 379000L},
+            {"74A", 453000L}, {"74B", 456000L}, {"74C", 457000L},
+            {"84A", 505000L}, {"84B", 506000L}, {"84C", 511000L},
+            {"95", 561000L}, {"106", 618000L}, {"126", 729000L},
+            {"129A", 779000L}, {"129B", 781000L}, {"134", 807000L}, {"145", 872000L},
+        });
+        aptFees.put("봄여름가을겨울3차", new Object[][]{
+            {"84", 350000L},
+        });
+        aptFees.put("포항학산더휴", new Object[][]{
+            {"59", 280000L}, {"74", 350000L}, {"84", 420000L},
+        });
+        aptFees.put("자이더테라스파크", new Object[][]{
+            {"84", 430000L}, {"99", 510000L}, {"116", 620000L},
+        });
+        aptFees.put("힐스테이트포레스타", new Object[][]{
+            {"84", 410000L}, {"102", 530000L}, {"118", 580000L},
+        });
+        aptFees.put("창원 힐스테이트 마크로엔", new Object[][]{
+            {"75", 380000L}, {"84", 430000L}, {"99", 520000L},
+        });
+
+        int seeded = 0;
+        for (Object[] c : complexes) {
+            String name = (String) c[0];
+            ComplexTemplate t = complexTemplateRepository.findByComplex_name(name).orElseGet(ComplexTemplate::new);
+            t.setComplex_name(name);
+            t.setMgmt_fee_bank((String) c[1]);
+            t.setMgmt_fee_account((String) c[2]);
+            t.setMgmt_fee_holder((String) c[3]);
+            t.setMgmt_fee_timing("입주증 발급 전 (미납 시 키불출 불가)");
+            t.setMgmt_office_location("단지 내 관리사무소");
+            t.setMgmt_office_phone((String) c[4]);
+            t.setMgmt_office_fax((String) c[5]);
+            t.setMgmt_office_open_date("입주 1개월 전부터 문의 가능");
+            t.setPayment_methods("① 무통장입금, 인터넷뱅킹, 모바일뱅킹 (현장 직접수납 불가) ② 동호수 및 성명기재");
+            t.setPayment_notes("예시: 101동 101호 홍길동 → 1010101홍길동 (동·호·이름순, 공백제거)");
+            t.setGeneral_balance_note("공급계약서 1조 ⓒ항 가상계좌번호 확인");
+            t.setGeneral_balance_holder(name + " 시행사");
+            t.setGeneral_option_bank((String) c[6]);
+            t.setGeneral_option_account((String) c[7]);
+            t.setGeneral_option_holder((String) c[8]);
+            t.setMiddle_loan_note("해당은행에서 상환금액 확인 후 직접상환 (중도금대출세대에 한함)");
+            t.setStamp_duty((Long) c[9]);
+            t.setGuarantee_fee_rate(new BigDecimal("0.0030"));   // 0.3% 가정
+            t.setMiddle_loan_rate(new BigDecimal("0.0450"));     // 4.5% 가정
+            t.setCreatedBy("ipjuon");
+            t.setUpdatedBy("ipjuon");
+            t.setUpdatedByRole("admin");
+            ComplexTemplate saved = complexTemplateRepository.save(t);
+
+            // 평형별 금액 — 매 부팅마다 갱신 (delete + reinsert)
+            complexTemplateAptFeeRepository.deleteByTemplateId(saved.getId());
+            Object[][] fees = aptFees.getOrDefault(name, new Object[0][]);
+            int order = 0;
+            for (Object[] f : fees) {
+                ComplexTemplateAptFee fee = new ComplexTemplateAptFee();
+                fee.setTemplate_id(saved.getId());
+                fee.setApt_type((String) f[0]);
+                fee.setMgmt_fee_amount((Long) f[1]);
+                fee.setDisplay_order(order++);
+                complexTemplateAptFeeRepository.save(fee);
+            }
+            seeded++;
+        }
+        System.out.println("✅ 단지 템플릿 " + seeded + "개 시드 완료 (잠실 미성크로바 실데이터 + 5개 가상)");
+    }
+
     // ── 샘플 상담 데이터 초기화 ──
     // SEED 마커가 붙은 데이터는 매 시작마다 삭제 후 재삽입 (manager 로테이션 + assignee_vendor_id 백필 보장).
     // SEED 마커가 없는 운영 데이터는 보존.
@@ -119,6 +236,7 @@ public class DataInitializer implements CommandLineRunner {
     // 생성 규칙: 8은행 × 3상담사 × 9템플릿(7활성+2완료) + 은행당 취소 1건 = 224건
     // → 각 상담사: 7건 활성 + 2건 완료 (HomeInbox 데모용 충분한 양)
     // → 각 팀장(은행): 21건 활성 + 6건 완료 + 1건 취소
+    // → 6개 단지에 분산 (단지별 평형은 시드 단지의 apt_fees 와 매칭)
     private void initSampleConsultations() {
         repository.findAllBankConsultations().stream()
                 .filter(r -> "SEED".equals(r.getSpecial_notes()))
@@ -155,8 +273,21 @@ public class DataInitializer implements CommandLineRunner {
 
         String[] DIVISIONS  = {"조합", "일반"};
         String[] OWNERSHIPS = {"단독", "공동"};
-        String[] APT_TYPES  = {"59", "71", "84"};
         String[] PRODUCTS   = {"고정", "변동"};
+
+        // 6개 단지에 분산 (단지명 + 평형별 매핑은 initComplexTemplates() 의 시드와 1:1 매칭)
+        String[] COMPLEX_NAMES = {
+            "잠실 미성크로바", "봄여름가을겨울3차", "포항학산더휴",
+            "자이더테라스파크", "힐스테이트포레스타", "창원 힐스테이트 마크로엔"
+        };
+        String[][] COMPLEX_APT_TYPES = {
+            {"59A", "74A", "84A"},  // 잠실 (대표 평형 3종)
+            {"84"},                  // 봄여름가을겨울3차 (단일)
+            {"59", "74", "84"},      // 포항학산더휴
+            {"84", "99", "116"},     // 자이더테라스파크
+            {"84", "102", "118"},    // 힐스테이트포레스타
+            {"75", "84", "99"}       // 창원
+        };
 
         Map<String, UUID> consultantIdCache = new HashMap<>();
         int seq = 0;
@@ -175,7 +306,12 @@ public class DataInitializer implements CommandLineRunner {
                     String phone = String.format("010-%04d-%04d",
                                                  1000 + (seq * 13) % 9000,
                                                  1000 + (seq * 17) % 9000);
-                    String dong  = String.valueOf(101 + (seq % 30));
+                    int complexIdx = seq % COMPLEX_NAMES.length;
+                    String complexName = COMPLEX_NAMES[complexIdx];
+                    String[] aptOptions = COMPLEX_APT_TYPES[complexIdx];
+                    String aptType = aptOptions[seq % aptOptions.length];
+                    // 단지별로 동 번호도 분리 (단지 인덱스 × 100 + 동)
+                    String dong  = String.valueOf(101 + complexIdx * 50 + (seq % 20));
                     String ho    = String.valueOf((1 + seq % 18) * 100 + (1 + seq % 4));
                     long amount  = 200_000_000L + ((seq % 20) * 10_000_000L);
 
@@ -184,14 +320,14 @@ public class DataInitializer implements CommandLineRunner {
                     r.setResident_phone(phone);
                     r.setVendor_name(bankName);
                     r.setVendor_type("은행");
-                    r.setComplex_name("창원힐스테이트");
+                    r.setComplex_name(complexName);
                     r.setDong(dong);
                     r.setHo(ho);
                     r.setManager(displayName);
                     r.setAssignee_vendor_id(consultantId);
                     r.setDivision(DIVISIONS[seq % 2]);
                     r.setOwnership(OWNERSHIPS[(seq / 2) % 2]);
-                    r.setApt_type(APT_TYPES[seq % 3]);
+                    r.setApt_type(aptType);
                     r.setProduct(PRODUCTS[(seq / 3) % 2]);
                     r.setLoan_status((String) tpl[0]);
                     r.setLoan_amount(amount);
@@ -226,19 +362,25 @@ public class DataInitializer implements CommandLineRunner {
             String name = LAST_NAMES[(seq * 13) % LAST_NAMES.length]
                         + FIRST_NAMES[(seq * 7) % FIRST_NAMES.length];
 
+            // 취소 건도 6개 단지 로테이션 (cancelIdx 0~7 → 단지 0~5 + 0~1)
+            int cancelComplexIdx = cancelIdx % COMPLEX_NAMES.length;
+            String cancelComplexName = COMPLEX_NAMES[cancelComplexIdx];
+            String[] cancelAptOptions = COMPLEX_APT_TYPES[cancelComplexIdx];
+            String cancelAptType = cancelAptOptions[0]; // 단지의 첫 평형
+
             ConsultationRequest r = new ConsultationRequest();
             r.setResident_name(name);
             r.setResident_phone(String.format("010-%04d-9999", 1000 + cancelIdx * 100));
             r.setVendor_name(bankName);
             r.setVendor_type("은행");
-            r.setComplex_name("창원힐스테이트");
+            r.setComplex_name(cancelComplexName);
             r.setDong(String.valueOf(150 + cancelIdx));
             r.setHo("1801");
             r.setManager(displayName);
             r.setAssignee_vendor_id(consultantId);
             r.setDivision(DIVISIONS[cancelIdx % 2]);
             r.setOwnership("단독");
-            r.setApt_type("84");
+            r.setApt_type(cancelAptType);
             r.setProduct("고정");
             r.setLoan_status("cancel");
             r.setLoan_amount(280_000_000L);
