@@ -1,5 +1,7 @@
 package com.ipjuon.backend.config;
 
+import com.ipjuon.backend.bankprofile.BankProfile;
+import com.ipjuon.backend.bankprofile.BankProfileRepository;
 import com.ipjuon.backend.complex.ComplexTemplate;
 import com.ipjuon.backend.complex.ComplexTemplateAptFee;
 import com.ipjuon.backend.complex.ComplexTemplateAptFeeRepository;
@@ -28,17 +30,20 @@ public class DataInitializer implements CommandLineRunner {
     private final BCryptPasswordEncoder passwordEncoder;
     private final ComplexTemplateRepository complexTemplateRepository;
     private final ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository;
+    private final BankProfileRepository bankProfileRepository;
 
     public DataInitializer(ConsultationRepository repository,
                            VendorRepository vendorRepository,
                            BCryptPasswordEncoder passwordEncoder,
                            ComplexTemplateRepository complexTemplateRepository,
-                           ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository) {
+                           ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository,
+                           BankProfileRepository bankProfileRepository) {
         this.repository = repository;
         this.vendorRepository = vendorRepository;
         this.passwordEncoder = passwordEncoder;
         this.complexTemplateRepository = complexTemplateRepository;
         this.complexTemplateAptFeeRepository = complexTemplateAptFeeRepository;
+        this.bankProfileRepository = bankProfileRepository;
     }
 
     // @Transactional: initComplexTemplates() 의 @Modifying deleteByTemplateId 는
@@ -50,6 +55,7 @@ public class DataInitializer implements CommandLineRunner {
         initBankVendors();
         initBankConsultants();
         initComplexTemplates();
+        initBankProfiles();
         initSampleConsultations();
     }
 
@@ -232,6 +238,75 @@ public class DataInitializer implements CommandLineRunner {
             seeded++;
         }
         System.out.println("✅ 단지 템플릿 " + seeded + "개 시드 완료 (잠실 미성크로바 실데이터 + 5개 가상)");
+    }
+
+    // ── 은행 프로필 시드 (입주민 앱 카드 콘텐츠) ──
+    // 8개 은행에 기본 인사글/취급상품/영업시간 등록.
+    // 매 부팅마다 갱신 (idempotent) - 운영 데이터 덮어쓰지 않게 빈 필드만 채움.
+    private void initBankProfiles() {
+        Object[][] profiles = {
+            // {bankName, greeting, products, business_hours, contact_phone}
+            {"신한은행",
+             "안녕하세요, 신한은행 입주ON 전담팀입니다. 빠르고 정확한 잔금대출 상담을 약속드립니다.",
+             "잔금대출 (고정/변동), 추가대출, 보증보험 (HUG/HF), 중도금대출 상환",
+             "평일 09:00~18:00 (점심 12:00~13:00 제외)",
+             "02-1599-8000"},
+            {"하나은행",
+             "하나은행 입주잔금팀입니다. 입주민 여러분의 안정적인 자금 마련을 도와드립니다.",
+             "잔금대출, 모기지론, 추가대출, 신용대출 연계 상품",
+             "평일 09:00~18:00",
+             "02-1599-1111"},
+            {"KB국민은행",
+             "KB국민은행 부전동지점 입주잔금 전담입니다. 친절하고 신속한 상담드립니다.",
+             "잔금대출 (고정/변동), 신혼부부 우대상품, 다자녀 우대",
+             "평일 09:00~18:00",
+             "02-1588-9999"},
+            {"우리은행",
+             "우리은행 입주ON 전담팀입니다. 한눈에 보는 맞춤 대출 안내를 드립니다.",
+             "잔금대출, 보금자리론 연계, 우대금리 상담",
+             "평일 09:00~18:00",
+             "02-1588-5000"},
+            {"NH농협은행",
+             "NH농협은행 입주잔금팀입니다. 전국 단지 대출 경험을 바탕으로 도와드립니다.",
+             "잔금대출, 농업인 우대 상품, 청년·신혼 우대",
+             "평일 09:00~18:00",
+             "02-1588-2100"},
+            {"IBK기업은행",
+             "IBK기업은행 입주잔금팀입니다. 직장인 우대 상품으로 빠르게 처리해드립니다.",
+             "잔금대출, 직장인 우대, IBK 멤버십 우대금리",
+             "평일 09:00~18:00",
+             "02-1588-2588"},
+            {"부산은행",
+             "부산은행 입주잔금팀입니다. 부산·경남 지역 단지 전문 상담드립니다.",
+             "잔금대출, 지역 우대 상품, 동백전 연계 우대",
+             "평일 09:00~18:00",
+             "02-1588-6200"},
+            {"대구은행",
+             "대구은행 입주잔금팀입니다. 대구·경북 지역 단지 전문 상담드립니다.",
+             "잔금대출, IM뱅크 연계, 지역 우대",
+             "평일 09:00~18:00",
+             "02-1588-5050"},
+        };
+
+        int seeded = 0;
+        for (Object[] p : profiles) {
+            String name = (String) p[0];
+            BankProfile bp = bankProfileRepository.findByBank_name(name).orElseGet(BankProfile::new);
+            bp.setBank_name(name);
+            // 기존 운영 데이터 덮어쓰지 않게 빈 필드만 채움
+            if (bp.getGreeting() == null || bp.getGreeting().isEmpty())             bp.setGreeting((String) p[1]);
+            if (bp.getProducts() == null || bp.getProducts().isEmpty())             bp.setProducts((String) p[2]);
+            if (bp.getBusiness_hours() == null || bp.getBusiness_hours().isEmpty()) bp.setBusiness_hours((String) p[3]);
+            if (bp.getContact_phone() == null || bp.getContact_phone().isEmpty())   bp.setContact_phone((String) p[4]);
+            if (bp.getIs_closed() == null) bp.setIs_closed(false);
+            if (bp.getUpdatedBy() == null) {
+                bp.setUpdatedBy("ipjuon");
+                bp.setUpdatedByRole("admin");
+            }
+            bankProfileRepository.save(bp);
+            seeded++;
+        }
+        System.out.println("✅ 은행 프로필 " + seeded + "개 시드 완료 (인사글/취급상품/영업시간 - 빈 필드만 채움)");
     }
 
     // ── 샘플 상담 데이터 초기화 ──
