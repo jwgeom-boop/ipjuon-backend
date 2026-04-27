@@ -51,9 +51,11 @@ public class ResidentConsentController {
                                                        @RequestBody Map<String, Object> body) {
         String name = asString(body.get("resident_name"));
         String phone = asString(body.get("resident_phone"));
-        if (name == null || phone == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "이름·연락처 필수"));
+        if (phone == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "연락처 필수"));
         }
+        // 이름이 비어 있으면 "(미상)" — 입주민 앱에서 회원정보 미입력 상태로 동의만 한 경우.
+        if (name == null) name = "(미상)";
 
         // 1) 동의서 기록 저장
         ResidentConsent c = new ResidentConsent();
