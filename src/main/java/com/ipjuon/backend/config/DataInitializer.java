@@ -2,6 +2,10 @@ package com.ipjuon.backend.config;
 
 import com.ipjuon.backend.bankprofile.BankProfile;
 import com.ipjuon.backend.bankprofile.BankProfileRepository;
+import com.ipjuon.backend.bankprofile.ComplexBankProfile;
+import com.ipjuon.backend.bankprofile.ComplexBankProfileRepository;
+import com.ipjuon.backend.bankprofile.ComplexBankProfile;
+import com.ipjuon.backend.bankprofile.ComplexBankProfileRepository;
 import com.ipjuon.backend.complex.ComplexTemplate;
 import com.ipjuon.backend.complex.ComplexTemplateAptFee;
 import com.ipjuon.backend.complex.ComplexTemplateAptFeeRepository;
@@ -31,19 +35,22 @@ public class DataInitializer implements CommandLineRunner {
     private final ComplexTemplateRepository complexTemplateRepository;
     private final ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository;
     private final BankProfileRepository bankProfileRepository;
+    private final ComplexBankProfileRepository complexBankProfileRepository;
 
     public DataInitializer(ConsultationRepository repository,
                            VendorRepository vendorRepository,
                            BCryptPasswordEncoder passwordEncoder,
                            ComplexTemplateRepository complexTemplateRepository,
                            ComplexTemplateAptFeeRepository complexTemplateAptFeeRepository,
-                           BankProfileRepository bankProfileRepository) {
+                           BankProfileRepository bankProfileRepository,
+                           ComplexBankProfileRepository complexBankProfileRepository) {
         this.repository = repository;
         this.vendorRepository = vendorRepository;
         this.passwordEncoder = passwordEncoder;
         this.complexTemplateRepository = complexTemplateRepository;
         this.complexTemplateAptFeeRepository = complexTemplateAptFeeRepository;
         this.bankProfileRepository = bankProfileRepository;
+        this.complexBankProfileRepository = complexBankProfileRepository;
     }
 
     // @Transactional: initComplexTemplates() 의 @Modifying deleteByTemplateId 는
@@ -56,6 +63,7 @@ public class DataInitializer implements CommandLineRunner {
         initBankConsultants();
         initComplexTemplates();
         initBankProfiles();
+        initComplexBankProfiles();
         initSampleConsultations();
     }
 
@@ -329,6 +337,59 @@ public class DataInitializer implements CommandLineRunner {
             seeded++;
         }
         System.out.println("✅ 은행 프로필 " + seeded + "개 시드 완료 (인사글/취급상품/영업시간 - 빈 필드만 채움)");
+    }
+
+    // ── 단지×은행 프로필 시드 (시연용 단지 맞춤 안내글) ──
+    // 빈 필드만 채움 — 팀장이 직접 입력한 데이터는 덮어쓰지 않음.
+    private void initComplexBankProfiles() {
+        Object[][] profiles = {
+            // {complex_name, bank_name, branch_name, greeting, products, business_hours, contact_phone}
+            {"잠실 미성크로바", "KB국민은행", "잠실지점",
+             "안녕하세요, KB국민은행 잠실지점 입주잔금 전담입니다. 잠실 미성크로바 단지 전담으로 빠른 상담 약속드립니다.",
+             "▣ 정부 정책대출\n  · 디딤돌대출 (생애최초·신혼·다자녀)\n  · 보금자리론 (40년 만기 가능)\n  · 신생아 특례 디딤돌대출 (1.6~3.3% 우대)\n\n▣ 자체 상품\n  · 잔금대출 (고정/변동)\n  · KB 신혼부부·다자녀 우대상품",
+             "평일 09:00~18:00",
+             "02-2143-7700"},
+            {"잠실 미성크로바", "신한은행", "송파지점",
+             "안녕하세요, 신한은행 송파지점 입주잔금 전담입니다. 잠실 단지 전담 상담사가 도와드립니다.",
+             "▣ 정부 정책대출\n  · 디딤돌대출\n  · 보금자리론\n  · 신생아 특례 디딤돌대출\n\n▣ 자체 상품\n  · 신한 잔금대출 (고정/변동)\n  · 추가대출, 보증보험 (HUG/HF)",
+             "평일 09:00~18:00 (점심 12:00~13:00 제외)",
+             "02-2143-8800"},
+            {"봄여름가을겨울3차", "KB국민은행", "부전동지점",
+             "안녕하세요, KB국민은행 부전동지점 입주잔금 전담입니다. 봄여름가을겨울3차 단지 전담입니다.",
+             "▣ 정부 정책대출\n  · 디딤돌대출\n  · 보금자리론\n  · 신생아 특례 디딤돌대출\n\n▣ 자체 상품\n  · 잔금대출 (고정/변동)\n  · 신혼부부·다자녀 우대",
+             "평일 09:00~18:00",
+             "051-811-5131"},
+            {"봄여름가을겨울3차", "신한은행", "부산지점",
+             "신한은행 부산지점 입주잔금 전담입니다. 봄여름가을겨울3차 입주민 여러분을 친절하게 도와드립니다.",
+             "▣ 정부 정책대출\n  · 디딤돌대출\n  · 보금자리론\n  · 신생아 특례 디딤돌대출\n\n▣ 자체 상품\n  · 잔금대출 (고정/변동)\n  · 추가대출, 신용대출 연계",
+             "평일 09:00~18:00",
+             "051-466-3000"},
+        };
+
+        int seeded = 0;
+        for (Object[] p : profiles) {
+            String complexName = (String) p[0];
+            String bankName = (String) p[1];
+            ComplexBankProfile cbp = complexBankProfileRepository
+                    .findByComplexAndBank(complexName, bankName)
+                    .orElseGet(ComplexBankProfile::new);
+            cbp.setComplex_name(complexName);
+            cbp.setBank_name(bankName);
+            // 빈 필드만 채움 — 팀장이 직접 입력한 값은 보호
+            if (cbp.getBranch_name() == null || cbp.getBranch_name().isEmpty())     cbp.setBranch_name((String) p[2]);
+            if (cbp.getGreeting() == null || cbp.getGreeting().isEmpty())             cbp.setGreeting((String) p[3]);
+            if (cbp.getProducts() == null || cbp.getProducts().isEmpty())             cbp.setProducts((String) p[4]);
+            if (cbp.getBusiness_hours() == null || cbp.getBusiness_hours().isEmpty()) cbp.setBusiness_hours((String) p[5]);
+            if (cbp.getContact_phone() == null || cbp.getContact_phone().isEmpty())   cbp.setContact_phone((String) p[6]);
+            if (cbp.getIs_closed() == null) cbp.setIs_closed(false);
+            if (cbp.getUpdatedBy() == null) {
+                cbp.setUpdatedBy("ipjuon");
+                cbp.setUpdatedByRole("admin");
+            }
+            complexBankProfileRepository.save(cbp);
+            seeded++;
+        }
+        System.out.println("✅ 단지×은행 프로필 " + seeded + "개 시드 완료 (잠실/봄여름가을겨울3차 × KB/신한 - 빈 필드만 채움)");
     }
 
     // ── 샘플 상담 데이터 초기화 ──
