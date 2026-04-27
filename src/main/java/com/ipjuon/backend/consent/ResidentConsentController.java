@@ -4,8 +4,6 @@ import com.ipjuon.backend.bankprofile.BankProfile;
 import com.ipjuon.backend.bankprofile.BankProfileRepository;
 import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.consultation.ConsultationRequest;
-import com.ipjuon.backend.vendor.Vendor;
-import com.ipjuon.backend.vendor.VendorRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
@@ -33,16 +31,13 @@ public class ResidentConsentController {
     private final ResidentConsentRepository consentRepo;
     private final BankProfileRepository profileRepo;
     private final ConsultationRepository consultationRepo;
-    private final VendorRepository vendorRepo;
 
     public ResidentConsentController(ResidentConsentRepository consentRepo,
                                      BankProfileRepository profileRepo,
-                                     ConsultationRepository consultationRepo,
-                                     VendorRepository vendorRepo) {
+                                     ConsultationRepository consultationRepo) {
         this.consentRepo = consentRepo;
         this.profileRepo = profileRepo;
         this.consultationRepo = consultationRepo;
-        this.vendorRepo = vendorRepo;
     }
 
     @PostMapping
