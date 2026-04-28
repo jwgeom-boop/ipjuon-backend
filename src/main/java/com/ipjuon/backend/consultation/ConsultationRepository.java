@@ -19,4 +19,9 @@ public interface ConsultationRepository extends JpaRepository<ConsultationReques
     // 담당 상담사(assignee_vendor_id)로 필터
     @Query("SELECT r FROM ConsultationRequest r WHERE r.vendor_type IN ('은행', 'bank') AND r.assignee_vendor_id = :vendorId ORDER BY r.createdAt DESC")
     List<ConsultationRequest> findByAssigneeVendorId(@Param("vendorId") UUID vendorId);
+
+    // 입주민 본인 상담건 조회 (B2C 앱 — 전화번호 기반)
+    // 저장된 phone 의 하이픈/공백을 제거하고 숫자만 비교 (앱은 010-1234-5678 형식, 백엔드 저장은 가변)
+    @Query("SELECT r FROM ConsultationRequest r WHERE REPLACE(REPLACE(REPLACE(r.resident_phone, '-', ''), ' ', ''), '+', '') = :phoneDigits ORDER BY r.createdAt DESC")
+    List<ConsultationRequest> findByResidentPhone(@Param("phoneDigits") String phoneDigits);
 }
