@@ -49,3 +49,11 @@ solapi:
   api-key: ${SOLAPI_API_KEY:}
   api-secret: ${SOLAPI_API_SECRET:}
   sender: ${SOLAPI_SENDER:}
+
+# Web Push (VAPID) — 입주민 앱 푸시 알림. 키가 비어 있으면 발송 비활성화.
+# 키 생성: ./gradlew bootRun --args="--vapid-gen" 또는 별도 utility 실행
+webpush:
+  enabled: ${WEBPUSH_ENABLED:true}
+  subject: ${WEBPUSH_SUBJECT:mailto:admin@ipjuon.com}
+  public-key: ${WEBPUSH_PUBLIC_KEY:}
+  private-key: ${WEBPUSH_PRIVATE_KEY:}

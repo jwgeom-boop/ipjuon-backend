@@ -4,6 +4,7 @@ import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.vendor.Vendor;
 import com.ipjuon.backend.vendor.VendorRepository;
+import com.ipjuon.backend.webpush.WebPushService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +32,7 @@ public class BankConsultationController {
     private final ConsultationRepository repository;
     private final BankExcelExportService excelService;
     private final VendorRepository vendorRepository;
+    private final WebPushService webPushService;
 
     @Value("${complex.name}")
     private String complexName;
@@ -46,10 +48,66 @@ public class BankConsultationController {
 
     public BankConsultationController(ConsultationRepository repository,
                                        BankExcelExportService excelService,
-                                       VendorRepository vendorRepository) {
+                                       VendorRepository vendorRepository,
+                                       WebPushService webPushService) {
         this.repository = repository;
         this.excelService = excelService;
         this.vendorRepository = vendorRepository;
+        this.webPushService = webPushService;
+    }
+
+    /** loan_status 전환 시 입주민 앱으로 Web Push 발송 */
+    private void sendStageChangePush(ConsultationRequest c, String oldStatus, String newStatus) {
+        if (c.getResident_phone() == null) return;
+        String bank = c.getVendor_name() != null ? c.getVendor_name() : "은행";
+        String url = "/my/consultations/" + c.getId();
+
+        String title;
+        String body;
+        switch (String.valueOf(newStatus)) {
+            case "result":
+                title = "🎉 " + bank + " 가심사 결과 도착";
+                body = c.getApproved_amount() != null
+                        ? "승인 " + formatEok(c.getApproved_amount())
+                            + (c.getApproved_rate() != null ? " · " + c.getApproved_rate() : "")
+                        : "탭하여 결과 확인";
+                break;
+            case "executing":
+                title = "✍️ " + bank + " 자서·실행 진행";
+                body = c.getSigning_date() != null
+                        ? "자서일 " + c.getSigning_date()
+                        : "일정 협의 시작";
+                break;
+            case "done":
+                title = "✅ " + bank + " 대출 실행 완료";
+                body = c.getExecution_date() != null
+                        ? c.getExecution_date() + " 실행"
+                        : "실행이 완료되었습니다";
+                break;
+            case "cancel":
+                title = "❌ " + bank + " 상담 취소";
+                body = c.getCanceled_reason() != null ? c.getCanceled_reason() : "상담이 취소되었습니다";
+                break;
+            case "consulting":
+            case "reviewing":
+                if ("apply".equals(oldStatus)) {
+                    title = "💬 " + bank + " 상담·심사 시작";
+                    body = c.getManager() != null ? "담당: " + c.getManager() : "담당자가 검토 중입니다";
+                } else return; // consulting↔reviewing 같은 그룹 내 전환은 무시
+                break;
+            default:
+                return;
+        }
+
+        webPushService.sendToPhone(c.getResident_phone(), title, body, url);
+    }
+
+    private static String formatEok(long won) {
+        long eok = won / 100_000_000L;
+        long man = (won % 100_000_000L) / 10_000L;
+        if (eok > 0 && man > 0) return eok + "억 " + String.format("%,d", man) + "만원";
+        if (eok > 0) return eok + "억원";
+        return String.format("%,d", man) + "만원";
     }
 
     // 은행 접수 리스트 조회
@@ -286,30 +344,43 @@ public class BankConsultationController {
         if (req.getMemo_log() != null) existing.setMemo_log(req.getMemo_log());
         if (req.getLast_sms_sent_at() != null) existing.setLast_sms_sent_at(req.getLast_sms_sent_at());
 
+        String oldStatus = existing.getLoan_status();
+        boolean stageChanged = false;
         if (req.getLoan_status() != null) {
-            String oldStatus = existing.getLoan_status();
             String newStatus = req.getLoan_status();
             existing.setLoan_status(newStatus);
             if (!java.util.Objects.equals(oldStatus, newStatus)) {
                 existing.setStage_changed_at(OffsetDateTime.now());
+                stageChanged = true;
             }
         }
         if (req.getMemo() != null) existing.setMemo(req.getMemo());
 
-        return repository.save(existing);
+        ConsultationRequest saved = repository.save(existing);
+        if (stageChanged) {
+            sendStageChangePush(saved, oldStatus, saved.getLoan_status());
+        }
+        return saved;
     }
 
     // 상태 변경 (단계 전환 시 stage_changed_at 자동 갱신)
     @PatchMapping("/consultations/{id}/status")
     public ConsultationRequest updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> body) {
         ConsultationRequest existing = repository.findById(id).orElseThrow();
+        String oldStatus = existing.getLoan_status();
         String newStatus = body.get("loan_status");
-        log.info("[단계 변경] id: {}, 단계: {} -> {}", id, existing.getLoan_status(), newStatus);
-        if (newStatus != null && !java.util.Objects.equals(existing.getLoan_status(), newStatus)) {
+        log.info("[단계 변경] id: {}, 단계: {} -> {}", id, oldStatus, newStatus);
+        boolean stageChanged = false;
+        if (newStatus != null && !java.util.Objects.equals(oldStatus, newStatus)) {
             existing.setLoan_status(newStatus);
             existing.setStage_changed_at(OffsetDateTime.now());
+            stageChanged = true;
         }
-        return repository.save(existing);
+        ConsultationRequest saved = repository.save(existing);
+        if (stageChanged) {
+            sendStageChangePush(saved, oldStatus, newStatus);
+        }
+        return saved;
     }
 
     // 엑셀 다운로드
