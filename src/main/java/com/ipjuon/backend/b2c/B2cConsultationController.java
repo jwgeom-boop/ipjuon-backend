@@ -227,6 +227,46 @@ public class B2cConsultationController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * 자서 일정 슬롯 선택 — 상담사가 제시한 슬롯 중 1개 선택.
+     * 확정은 상담사 측 endpoint 에서 별도 처리.
+     */
+    @PostMapping("/{id}/select-signing-slot")
+    @Transactional
+    public ResponseEntity<?> selectSigningSlot(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        String normalized = normalizePhone((String) body.get("phone"));
+        if (normalized == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "phone 필수"));
+        }
+        Object idxObj = body.get("slot_index");
+        Integer slotIndex;
+        try {
+            slotIndex = idxObj == null ? null : Integer.parseInt(idxObj.toString());
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "slot_index 형식 오류"));
+        }
+        if (slotIndex == null || slotIndex < 0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "유효한 slot_index 필요"));
+        }
+
+        return repo.findById(id).<ResponseEntity<?>>map(r -> {
+            if (!normalized.equals(normalizePhone(r.getResident_phone()))) {
+                return ResponseEntity.status(403).body(Map.of("error", "본인 상담건이 아닙니다"));
+            }
+            if (r.getSigning_offered_slots() == null || r.getSigning_offered_slots().isBlank()) {
+                return ResponseEntity.status(409).body(Map.of("error", "아직 일정이 제시되지 않았습니다"));
+            }
+            if (r.getSigning_confirmed_at() != null) {
+                return ResponseEntity.status(409).body(Map.of("error", "이미 확정된 일정입니다"));
+            }
+            r.setSigning_selected_slot_index(slotIndex);
+            r.setSigning_selected_at(OffsetDateTime.now());
+            repo.save(r);
+            log.info("[B2C] 자서 슬롯 선택 id={} idx={}", id, slotIndex);
+            return ResponseEntity.ok(B2cConsultationDto.toDetail(r));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     /** 전화번호 정규화 — 010-1234-5678 / 01012345678 / 010 1234 5678 모두 동일 처리 */
     private static String normalizePhone(String phone) {
         if (phone == null) return null;

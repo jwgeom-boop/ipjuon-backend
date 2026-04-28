@@ -100,7 +100,14 @@ public class B2cConsultationDto {
         // 자서·실행 일정
         m.put("signing_date", r.getSigning_date());
         m.put("signing_time", r.getSigning_time());
+        m.put("signing_location", r.getSigning_location());
         m.put("execution_date", r.getExecution_date());
+
+        // 자서 일정 슬롯 워크플로 (가심사~자서 단계)
+        m.put("signing_offered_slots", r.getSigning_offered_slots());
+        m.put("signing_selected_slot_index", r.getSigning_selected_slot_index());
+        m.put("signing_selected_at", r.getSigning_selected_at());
+        m.put("signing_confirmed_at", r.getSigning_confirmed_at());
         m.put("loan_amount", r.getLoan_amount());
         m.put("loan_period", r.getLoan_period());
         m.put("repayment_method", r.getRepayment_method());

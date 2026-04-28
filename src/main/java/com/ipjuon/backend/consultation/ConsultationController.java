@@ -19,6 +19,11 @@ public class ConsultationController {
         return repository.findAll();
     }
 
+    @GetMapping("/{id}")
+    public ConsultationRequest getOne(@PathVariable java.util.UUID id) {
+        return repository.findById(id).orElseThrow();
+    }
+
     @PostMapping
     public ConsultationRequest create(@RequestBody ConsultationRequest request) {
         return repository.save(request);

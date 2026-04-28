@@ -160,6 +160,21 @@ public class ConsultationRequest {
     @Column(name = "reported_middle_interest_at")
     private OffsetDateTime reported_middle_interest_at;
 
+    // ===== 자서 일정 슬롯 워크플로 (B2C 앱) =====
+    // 상담사가 사이트에서 가능한 슬롯을 JSON 으로 제시 (예: [{"date":"2026-05-12","time":"10:00","location":"부전동지점"}, ...])
+    @Column(name = "signing_offered_slots", columnDefinition = "text")
+    private String signing_offered_slots;
+    // 입주민이 선택한 슬롯의 인덱스 (offered_slots 배열의 0-based index)
+    @Column(name = "signing_selected_slot_index")
+    private Integer signing_selected_slot_index;
+    @Column(name = "signing_selected_at")
+    private OffsetDateTime signing_selected_at;
+    // 상담사가 최종 확정한 시각 (확정 시 signing_date / signing_time 도 함께 셋팅됨)
+    @Column(name = "signing_confirmed_at")
+    private OffsetDateTime signing_confirmed_at;
+    // 확정된 자서 장소 (offered_slots 의 location)
+    private String signing_location;
+
     // Getters and Setters - 기본
     public UUID getId() { return id; }
     public String getResident_name() { return resident_name; }
@@ -372,4 +387,18 @@ public class ConsultationRequest {
     @JsonProperty("reported_middle_interest_at")
     public OffsetDateTime getReported_middle_interest_at() { return reported_middle_interest_at; }
     public void setReported_middle_interest_at(OffsetDateTime v) { this.reported_middle_interest_at = v; }
+
+    // 자서 일정 슬롯
+    public String getSigning_offered_slots() { return signing_offered_slots; }
+    public void setSigning_offered_slots(String v) { this.signing_offered_slots = v; }
+    public Integer getSigning_selected_slot_index() { return signing_selected_slot_index; }
+    public void setSigning_selected_slot_index(Integer v) { this.signing_selected_slot_index = v; }
+    @JsonProperty("signing_selected_at")
+    public OffsetDateTime getSigning_selected_at() { return signing_selected_at; }
+    public void setSigning_selected_at(OffsetDateTime v) { this.signing_selected_at = v; }
+    @JsonProperty("signing_confirmed_at")
+    public OffsetDateTime getSigning_confirmed_at() { return signing_confirmed_at; }
+    public void setSigning_confirmed_at(OffsetDateTime v) { this.signing_confirmed_at = v; }
+    public String getSigning_location() { return signing_location; }
+    public void setSigning_location(String v) { this.signing_location = v; }
 }

@@ -383,6 +383,96 @@ public class BankConsultationController {
         return saved;
     }
 
+    /**
+     * 자서 일정 슬롯 제시 — 상담사가 가능한 일정 N개 제시.
+     * Body: { "slots": [ { date, time, location }, ... ] }
+     * 제시 직후 입주민 앱으로 푸시 발송.
+     */
+    @PutMapping("/consultations/{id}/signing-slots")
+    public ConsultationRequest setSigningSlots(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        ConsultationRequest existing = repository.findById(id).orElseThrow();
+        Object slotsObj = body.get("slots");
+        if (slotsObj == null) {
+            throw new IllegalArgumentException("slots 필수");
+        }
+        // JSON 직렬화해서 저장 (List<Map> → JSON 문자열)
+        try {
+            String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(slotsObj);
+            existing.setSigning_offered_slots(json);
+            // 새 슬롯 제시 시 기존 선택은 무효화
+            existing.setSigning_selected_slot_index(null);
+            existing.setSigning_selected_at(null);
+            existing.setSigning_confirmed_at(null);
+        } catch (Exception e) {
+            throw new RuntimeException("slots 직렬화 실패", e);
+        }
+        ConsultationRequest saved = repository.save(existing);
+        log.info("[자서 슬롯 제시] id={} slots={}", id, saved.getSigning_offered_slots());
+
+        // 입주민 앱 푸시
+        if (saved.getResident_phone() != null) {
+            String bank = saved.getVendor_name() != null ? saved.getVendor_name() : "은행";
+            webPushService.sendToPhone(
+                    saved.getResident_phone(),
+                    "📅 " + bank + " 자서 일정 도착",
+                    "가능한 시간을 선택해주세요",
+                    "/my/consultations/" + saved.getId()
+            );
+        }
+        return saved;
+    }
+
+    /**
+     * 자서 일정 확정 — 입주민이 선택한 슬롯을 상담사가 확정.
+     * 확정 시 signing_date / signing_time / signing_location 셋팅 + 입주민 푸시.
+     */
+    @PostMapping("/consultations/{id}/confirm-signing-slot")
+    public ConsultationRequest confirmSigningSlot(@PathVariable UUID id) {
+        ConsultationRequest existing = repository.findById(id).orElseThrow();
+        if (existing.getSigning_selected_slot_index() == null) {
+            throw new IllegalStateException("입주민이 아직 슬롯을 선택하지 않았습니다");
+        }
+        if (existing.getSigning_offered_slots() == null) {
+            throw new IllegalStateException("제시된 슬롯이 없습니다");
+        }
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+            @SuppressWarnings("unchecked")
+            List<Map<String, String>> slots = om.readValue(existing.getSigning_offered_slots(), List.class);
+            int idx = existing.getSigning_selected_slot_index();
+            if (idx < 0 || idx >= slots.size()) {
+                throw new IllegalStateException("선택된 슬롯 인덱스가 범위를 벗어남");
+            }
+            Map<String, String> slot = slots.get(idx);
+            String dateStr = slot.get("date");
+            String timeStr = slot.get("time");
+            String location = slot.get("location");
+            if (dateStr != null) existing.setSigning_date(LocalDate.parse(dateStr));
+            if (timeStr != null) existing.setSigning_time(timeStr);
+            if (location != null) existing.setSigning_location(location);
+            existing.setSigning_confirmed_at(OffsetDateTime.now());
+        } catch (Exception e) {
+            throw new RuntimeException("슬롯 확정 실패: " + e.getMessage(), e);
+        }
+        ConsultationRequest saved = repository.save(existing);
+        log.info("[자서 슬롯 확정] id={} date={} time={} location={}", id,
+                saved.getSigning_date(), saved.getSigning_time(), saved.getSigning_location());
+
+        // 입주민 앱 푸시
+        if (saved.getResident_phone() != null) {
+            String bank = saved.getVendor_name() != null ? saved.getVendor_name() : "은행";
+            String body = saved.getSigning_date() + (saved.getSigning_time() != null ? " " + saved.getSigning_time() : "")
+                    + (saved.getSigning_location() != null ? " · " + saved.getSigning_location() : "");
+            webPushService.sendToPhone(
+                    saved.getResident_phone(),
+                    "✅ " + bank + " 자서 예약 확정",
+                    body,
+                    "/my/consultations/" + saved.getId()
+            );
+        }
+        return saved;
+    }
+
     // 엑셀 다운로드
     @GetMapping("/consultations/excel")
     public ResponseEntity<byte[]> downloadExcel(
