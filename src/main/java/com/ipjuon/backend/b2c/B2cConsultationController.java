@@ -8,7 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,9 +41,8 @@ public class B2cConsultationController {
 
         List<ConsultationRequest> rows = repo.findByResidentPhone(normalized);
 
-        // 진행단계 우선 정렬: result(가심사) > consulting > apply > executing > done > cancel
-        // (가장 액션이 필요한 단계가 위로)
-        Map<String, Integer> stageOrder = Map.of(
+        // 정렬용: 가장 액션이 필요한 단계가 위로
+        Map<String, Integer> displayOrder = Map.of(
                 "result", 1,
                 "consulting", 2,
                 "apply", 3,
@@ -50,10 +51,44 @@ public class B2cConsultationController {
                 "cancel", 6
         );
 
-        List<Map<String, Object>> result = rows.stream()
+        // 중복 제거용: 같은 은행이면 가장 진행된 단계 1건만 (done > executing > result > consulting > apply > cancel)
+        // 동의서 제출이 여러 번 일어나거나 시드 데이터로 같은 은행 다건 존재 시 정리.
+        Map<String, Integer> advancementOrder = Map.of(
+                "done", 6,
+                "executing", 5,
+                "result", 4,
+                "consulting", 3,
+                "apply", 2,
+                "cancel", 1
+        );
+
+        Map<String, ConsultationRequest> dedupedByBank = new LinkedHashMap<>();
+        for (ConsultationRequest r : rows) {
+            String bank = r.getVendor_name();
+            if (bank == null) continue;
+            ConsultationRequest existing = dedupedByBank.get(bank);
+            if (existing == null) {
+                dedupedByBank.put(bank, r);
+                continue;
+            }
+            int newRank = advancementOrder.getOrDefault(B2cConsultationDto.mapStage(r.getLoan_status()), 0);
+            int oldRank = advancementOrder.getOrDefault(B2cConsultationDto.mapStage(existing.getLoan_status()), 0);
+            if (newRank > oldRank) {
+                dedupedByBank.put(bank, r);
+            } else if (newRank == oldRank) {
+                // 같은 단계면 더 최근 stage_changed_at / created_at 우선
+                OffsetDateTime newTs = r.getStage_changed_at() != null ? r.getStage_changed_at() : r.getCreatedAt();
+                OffsetDateTime oldTs = existing.getStage_changed_at() != null ? existing.getStage_changed_at() : existing.getCreatedAt();
+                if (newTs != null && oldTs != null && newTs.isAfter(oldTs)) {
+                    dedupedByBank.put(bank, r);
+                }
+            }
+        }
+
+        List<Map<String, Object>> result = dedupedByBank.values().stream()
                 .map(B2cConsultationDto::toListItem)
                 .sorted(Comparator.comparingInt(m ->
-                        stageOrder.getOrDefault((String) m.get("stage"), 99)))
+                        displayOrder.getOrDefault((String) m.get("stage"), 99)))
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(result);
@@ -130,6 +165,62 @@ public class B2cConsultationController {
             r.setStage_changed_at(OffsetDateTime.now());
             repo.save(r);
             log.info("[B2C] 취소 요청 id={} phone={} reason={}", id, normalized, reason);
+            return ResponseEntity.ok(B2cConsultationDto.toDetail(r));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * 중도금 이자 보고 — 입주민이 실행일 당일 은행에서 확인 후 앱으로 전달.
+     * 조건:
+     *   - executing 단계
+     *   - 실행일 D-1 ~ D+0 (실행일 미설정 시 거부)
+     *   - 상담사가 settle_middle_interest 확정 전까지만 수정 가능
+     */
+    @PostMapping("/{id}/report-middle-interest")
+    @Transactional
+    public ResponseEntity<?> reportMiddleInterest(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        String normalized = normalizePhone((String) body.get("phone"));
+        if (normalized == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "phone 필수"));
+        }
+        Object amountObj = body.get("amount");
+        Long amount;
+        try {
+            amount = amountObj == null ? null : Long.parseLong(amountObj.toString().replaceAll("\\D", ""));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "amount 형식 오류"));
+        }
+        if (amount == null || amount <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "유효한 금액이 필요합니다"));
+        }
+
+        return repo.findById(id).<ResponseEntity<?>>map(r -> {
+            if (!normalized.equals(normalizePhone(r.getResident_phone()))) {
+                return ResponseEntity.status(403).body(Map.of("error", "본인 상담건이 아닙니다"));
+            }
+            if (!"executing".equals(r.getLoan_status())) {
+                return ResponseEntity.status(409).body(Map.of("error", "자서·실행 단계에서만 보고 가능합니다"));
+            }
+            if (r.getExecution_date() == null) {
+                return ResponseEntity.status(409).body(Map.of("error", "실행일이 아직 정해지지 않았습니다"));
+            }
+            // 실행일 D-1 ~ D+0 (시간대 무관 단순 비교)
+            long daysToExecution = ChronoUnit.DAYS.between(LocalDate.now(), r.getExecution_date());
+            if (daysToExecution > 1 || daysToExecution < 0) {
+                return ResponseEntity.status(409).body(Map.of("error",
+                        "실행일 전날부터 당일까지만 보고 가능합니다 (D" + (daysToExecution >= 0 ? "-" : "+") + Math.abs(daysToExecution) + ")"));
+            }
+            // 이미 상담사가 확정한 경우 수정 거부
+            if (r.getSettle_middle_interest() != null && r.getSettle_middle_interest() > 0) {
+                return ResponseEntity.status(409).body(Map.of("error", "상담사가 이미 확정한 건은 수정할 수 없습니다"));
+            }
+
+            r.setReported_middle_interest(amount);
+            r.setReported_middle_interest_at(OffsetDateTime.now());
+            repo.save(r);
+            log.info("[B2C] 중도금이자 보고 id={} amount={} phone={}", id, amount, normalized);
+
+            // 상담사 통보 채널은 다음 차수 — 백엔드 저장만 하고 사이트 인박스는 후속
             return ResponseEntity.ok(B2cConsultationDto.toDetail(r));
         }).orElse(ResponseEntity.notFound().build());
     }

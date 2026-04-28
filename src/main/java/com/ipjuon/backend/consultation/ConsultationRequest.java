@@ -153,6 +153,13 @@ public class ConsultationRequest {
     @Column(name = "last_sms_sent_at")
     private OffsetDateTime last_sms_sent_at;
 
+    // ===== 입주민 보고값 (B2C 앱) =====
+    // 중도금이자: 실행일 당일 입주민이 은행에서 확인 후 앱으로 보고 → 상담사가 확인하고 settle_middle_interest 확정
+    @Column(name = "reported_middle_interest")
+    private Long reported_middle_interest;
+    @Column(name = "reported_middle_interest_at")
+    private OffsetDateTime reported_middle_interest_at;
+
     // Getters and Setters - 기본
     public UUID getId() { return id; }
     public String getResident_name() { return resident_name; }
@@ -358,4 +365,11 @@ public class ConsultationRequest {
     @JsonProperty("last_sms_sent_at")
     public OffsetDateTime getLast_sms_sent_at() { return last_sms_sent_at; }
     public void setLast_sms_sent_at(OffsetDateTime v) { this.last_sms_sent_at = v; }
+
+    // 입주민 보고값
+    public Long getReported_middle_interest() { return reported_middle_interest; }
+    public void setReported_middle_interest(Long v) { this.reported_middle_interest = v; }
+    @JsonProperty("reported_middle_interest_at")
+    public OffsetDateTime getReported_middle_interest_at() { return reported_middle_interest_at; }
+    public void setReported_middle_interest_at(OffsetDateTime v) { this.reported_middle_interest_at = v; }
 }

@@ -111,21 +111,45 @@ public class B2cConsultationDto {
         m.put("manager_name", r.getManager());
         m.put("bank_manager_phone", r.getBank_manager_phone());
 
-        // 정산 (실행 단계부터)
+        // 정산 (실행 단계부터) — 송금 정보 표 형식으로 노출
         if ("executing".equals(stage) || "done".equals(stage)) {
             Map<String, Object> settle = new LinkedHashMap<>();
+            // 중도금 (해당은행 계좌)
             settle.put("middle_principal", r.getSettle_middle_principal());
             settle.put("middle_interest", r.getSettle_middle_interest());
+            settle.put("middle_bank", r.getSettle_middle_bank());
+            settle.put("middle_account", r.getSettle_middle_account());
+            // 입주민 보고 — 중도금이자
+            settle.put("reported_middle_interest", r.getReported_middle_interest());
+            settle.put("reported_middle_interest_at", r.getReported_middle_interest_at());
+
+            // 분양잔금 (시행사 계좌 — settle_balance_account)
             settle.put("balance_principal", r.getSettle_balance_principal());
             settle.put("balance_interest", r.getSettle_balance_interest());
+            settle.put("balance_account", r.getSettle_balance_account());
+
+            // 발코니/옵션/보증수수료 (시행사 계좌 공유)
             settle.put("balcony", r.getSettle_balcony());
             settle.put("options", r.getSettle_options());
             settle.put("guarantee_fee", r.getSettle_guarantee_fee());
+
+            // 선수관리비 (관리사무소 계좌)
             settle.put("mgmt_fee", r.getSettle_mgmt_fee());
+            settle.put("mgmt_account", r.getSettle_mgmt_account());
+
+            // 이주비 (이주비 은행 계좌)
             settle.put("moving_allowance", r.getSettle_moving_allowance());
+            settle.put("moving_bank", r.getSettle_moving_bank());
+            settle.put("moving_account", r.getSettle_moving_account());
+
+            // 인지대 (정액)
             settle.put("stamp_duty", r.getSettle_stamp_duty());
+            settle.put("stamp_duty_additional", r.getSettle_stamp_duty_additional());
+
             m.put("settlement", settle);
             m.put("execution_completed", r.getExecution_completed());
+            m.put("additional_loan_amount", r.getAdditional_loan_amount());
+            m.put("bank_manager_fax", r.getBank_manager_fax());
         }
 
         // 입주일 (D-day 표시용)
