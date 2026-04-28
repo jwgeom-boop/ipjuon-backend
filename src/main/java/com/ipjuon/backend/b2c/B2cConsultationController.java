@@ -41,12 +41,14 @@ public class B2cConsultationController {
 
         List<ConsultationRequest> rows = repo.findByResidentPhone(normalized);
 
-        // 정렬용: 가장 액션이 필요한 단계가 위로
+        // 정렬용: 진행이 가장 많이 된 단계 = 가장 중요 → 최상단
+        // executing(자서·실행 진행) > result(가심사 결과) > consulting(상담·심사) > apply(신청)
+        // done/cancel 은 별도 섹션이라 사실상 마지막
         Map<String, Integer> displayOrder = Map.of(
-                "result", 1,
-                "consulting", 2,
-                "apply", 3,
-                "executing", 4,
+                "executing", 1,
+                "result", 2,
+                "consulting", 3,
+                "apply", 4,
                 "done", 5,
                 "cancel", 6
         );

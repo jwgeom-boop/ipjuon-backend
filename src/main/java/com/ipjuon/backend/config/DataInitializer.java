@@ -746,6 +746,39 @@ public class DataInitializer implements CommandLineRunner {
             r.setPreferred_time("오전");
             r.setLoan_period("30년");
             r.setRepayment_method("원리금균등");
+
+            // executing/done 단계 시드는 정산·송금 정보를 채워 입주민 앱 시연 가능하도록 (B2C M5)
+            String stageNow = r.getLoan_status();
+            if ("executing".equals(stageNow) || "done".equals(stageNow)) {
+                Long loanAmt = r.getLoan_amount() != null ? r.getLoan_amount() : 300000000L;
+                long balancePrincipal = (long) (loanAmt * 0.55);   // 분양잔금 ~55%
+                long middlePrincipal  = (long) (loanAmt * 0.40);   // 중도금 ~40%
+                long balcony          = 9000000L;                  // 발코니 확장
+                long mgmtFee          = 350000L;                   // 선수관리비
+                long stampDuty        = 150000L;                   // 인지대
+
+                r.setSettle_middle_principal(middlePrincipal);
+                r.setSettle_middle_bank("국민은행");
+                r.setSettle_middle_account("수표상환");
+                // 중도금이자: done 만 확정값 / executing 은 비워둠 (입주민 보고 흐름 시연용)
+                if ("done".equals(stageNow)) {
+                    r.setSettle_middle_interest(165601L);
+                }
+
+                r.setSettle_balance_principal(balancePrincipal);
+                r.setSettle_balance_account("101437-04-002570");
+
+                r.setSettle_balcony(balcony);
+                r.setSettle_mgmt_fee(mgmtFee);
+                r.setSettle_mgmt_account("356-1102-3344-55 (관리사무소)");
+                r.setSettle_stamp_duty(stampDuty);
+
+                // 담당자 정보
+                r.setBank_branch(r.getVendor_name() + " 부전동");
+                r.setBank_manager_phone("051-811-5131");
+                r.setBank_manager_fax("051-809-5524");
+            }
+
             repository.save(r);
         }
 
