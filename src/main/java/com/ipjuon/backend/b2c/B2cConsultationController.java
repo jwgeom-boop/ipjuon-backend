@@ -303,6 +303,38 @@ public class B2cConsultationController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * 입주민 준비서류 체크리스트 업데이트 — 클라이언트가 체크된 doc id 전체 배열 전송.
+     */
+    @PostMapping("/{id}/document-checks")
+    @Transactional
+    public ResponseEntity<?> updateDocChecks(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        String normalized = normalizePhone((String) body.get("phone"));
+        if (normalized == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "phone 필수"));
+        }
+        Object checksObj = body.get("checks");
+        if (!(checksObj instanceof List<?>)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "checks 배열 필수"));
+        }
+        List<?> checks = (List<?>) checksObj;
+        String csv = checks.stream()
+                .filter(o -> o != null && !o.toString().isBlank())
+                .map(Object::toString)
+                .collect(Collectors.joining(","));
+
+        return repo.findById(id).<ResponseEntity<?>>map(r -> {
+            if (!normalized.equals(normalizePhone(r.getResident_phone()))) {
+                return ResponseEntity.status(403).body(Map.of("error", "본인 상담건이 아닙니다"));
+            }
+            r.setResident_doc_checks(csv);
+            r.setResident_doc_checks_at(OffsetDateTime.now());
+            repo.save(r);
+            log.info("[B2C] 준비서류 체크 업데이트 id={} count={}", id, checks.size());
+            return ResponseEntity.ok(B2cConsultationDto.toDetail(r));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     /** 전화번호 정규화 — 010-1234-5678 / 01012345678 / 010 1234 5678 모두 동일 처리 */
     private static String normalizePhone(String phone) {
         if (phone == null) return null;

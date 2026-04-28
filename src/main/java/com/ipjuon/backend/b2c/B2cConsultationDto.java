@@ -168,6 +168,10 @@ public class B2cConsultationDto {
             m.put("bank_manager_fax", r.getBank_manager_fax());
         }
 
+        // 입주민 준비서류 체크리스트
+        m.put("resident_doc_checks", r.getResident_doc_checks());
+        m.put("resident_doc_checks_at", r.getResident_doc_checks_at());
+
         // 입주일 (D-day 표시용)
         m.put("moving_in_date", r.getMoving_in_date());
 

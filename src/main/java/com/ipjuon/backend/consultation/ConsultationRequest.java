@@ -160,6 +160,12 @@ public class ConsultationRequest {
     @Column(name = "reported_middle_interest_at")
     private OffsetDateTime reported_middle_interest_at;
 
+    // 입주민 측 준비서류 체크리스트 — 쉼표 구분 doc id (예: "resident-cert,resident-abstr,...")
+    @Column(name = "resident_doc_checks", columnDefinition = "text")
+    private String resident_doc_checks;
+    @Column(name = "resident_doc_checks_at")
+    private OffsetDateTime resident_doc_checks_at;
+
     // ===== 자서 일정 캘린더 워크플로 (B2C 앱, v2 — opt-out 방식) =====
     // 표시 기간 (없으면 오늘+3 ~ 오늘+30일 default)
     @Column(name = "signing_window_start")
@@ -405,6 +411,11 @@ public class ConsultationRequest {
     @JsonProperty("reported_middle_interest_at")
     public OffsetDateTime getReported_middle_interest_at() { return reported_middle_interest_at; }
     public void setReported_middle_interest_at(OffsetDateTime v) { this.reported_middle_interest_at = v; }
+    public String getResident_doc_checks() { return resident_doc_checks; }
+    public void setResident_doc_checks(String v) { this.resident_doc_checks = v; }
+    @JsonProperty("resident_doc_checks_at")
+    public OffsetDateTime getResident_doc_checks_at() { return resident_doc_checks_at; }
+    public void setResident_doc_checks_at(OffsetDateTime v) { this.resident_doc_checks_at = v; }
 
     // 자서 일정 캘린더 (v2)
     public LocalDate getSigning_window_start() { return signing_window_start; }
