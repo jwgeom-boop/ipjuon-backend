@@ -24,4 +24,8 @@ public interface ConsultationRepository extends JpaRepository<ConsultationReques
     // 저장된 phone 의 하이픈/공백을 제거하고 숫자만 비교 (앱은 010-1234-5678 형식, 백엔드 저장은 가변)
     @Query("SELECT r FROM ConsultationRequest r WHERE REPLACE(REPLACE(REPLACE(r.resident_phone, '-', ''), ' ', ''), '+', '') = :phoneDigits ORDER BY r.createdAt DESC")
     List<ConsultationRequest> findByResidentPhone(@Param("phoneDigits") String phoneDigits);
+
+    // 같은 은행에서 자서 확정된 다른 상담건들 (더블부킹 방지용)
+    @Query("SELECT r FROM ConsultationRequest r WHERE r.vendor_name = :bankName AND r.signing_date IS NOT NULL AND r.signing_confirmed_at IS NOT NULL AND r.id <> :excludeId")
+    List<ConsultationRequest> findConfirmedSigningsByBank(@Param("bankName") String bankName, @Param("excludeId") UUID excludeId);
 }

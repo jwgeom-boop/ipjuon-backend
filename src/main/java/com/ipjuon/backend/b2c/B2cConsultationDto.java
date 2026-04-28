@@ -103,11 +103,20 @@ public class B2cConsultationDto {
         m.put("signing_location", r.getSigning_location());
         m.put("execution_date", r.getExecution_date());
 
-        // 자서 일정 슬롯 워크플로 (가심사~자서 단계)
-        m.put("signing_offered_slots", r.getSigning_offered_slots());
-        m.put("signing_selected_slot_index", r.getSigning_selected_slot_index());
+        // [v2] 자서 일정 캘린더 워크플로
+        m.put("signing_window_start", r.getSigning_window_start());
+        m.put("signing_window_end", r.getSigning_window_end());
+        m.put("signing_excluded_dates", r.getSigning_excluded_dates());
+        m.put("signing_available_times", r.getSigning_available_times());
+        m.put("signing_available_locations", r.getSigning_available_locations());
+        m.put("signing_selected_date", r.getSigning_selected_date());
+        m.put("signing_selected_time", r.getSigning_selected_time());
+        m.put("signing_selected_location_str", r.getSigning_selected_location_str());
         m.put("signing_selected_at", r.getSigning_selected_at());
         m.put("signing_confirmed_at", r.getSigning_confirmed_at());
+        // Legacy
+        m.put("signing_offered_slots", r.getSigning_offered_slots());
+        m.put("signing_selected_slot_index", r.getSigning_selected_slot_index());
         m.put("loan_amount", r.getLoan_amount());
         m.put("loan_period", r.getLoan_period());
         m.put("repayment_method", r.getRepayment_method());

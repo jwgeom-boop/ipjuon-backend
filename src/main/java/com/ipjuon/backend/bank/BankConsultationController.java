@@ -17,6 +17,8 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -384,10 +386,83 @@ public class BankConsultationController {
     }
 
     /**
-     * 자서 일정 슬롯 제시 — 상담사가 가능한 일정 N개 제시.
-     * Body: { "slots": [ { date, time, location }, ... ] }
-     * 제시 직후 입주민 앱으로 푸시 발송.
+     * 자서 일정 캘린더 설정 (v2 — opt-out 방식).
+     * Body: {
+     *   window_start: "YYYY-MM-DD" (optional, default 오늘+3),
+     *   window_end:   "YYYY-MM-DD" (optional, default 오늘+30),
+     *   excluded_dates: ["YYYY-MM-DD", ...],
+     *   available_times: ["HH:MM", ...],
+     *   available_locations: ["...", ...]
+     * }
+     * 첫 설정 시(또는 변경 시) 입주민 앱으로 푸시.
      */
+    @PutMapping("/consultations/{id}/signing-calendar")
+    public ConsultationRequest setSigningCalendar(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        ConsultationRequest existing = repository.findById(id).orElseThrow();
+        com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
+        boolean isFirstSetup = (existing.getSigning_available_times() == null);
+        try {
+            if (body.get("window_start") != null) {
+                existing.setSigning_window_start(LocalDate.parse(body.get("window_start").toString()));
+            }
+            if (body.get("window_end") != null) {
+                existing.setSigning_window_end(LocalDate.parse(body.get("window_end").toString()));
+            }
+            if (body.get("excluded_dates") != null) {
+                existing.setSigning_excluded_dates(om.writeValueAsString(body.get("excluded_dates")));
+            }
+            if (body.get("available_times") != null) {
+                existing.setSigning_available_times(om.writeValueAsString(body.get("available_times")));
+            }
+            if (body.get("available_locations") != null) {
+                existing.setSigning_available_locations(om.writeValueAsString(body.get("available_locations")));
+            }
+            // 새 설정 시 기존 선택 무효화
+            existing.setSigning_selected_date(null);
+            existing.setSigning_selected_time(null);
+            existing.setSigning_selected_location_str(null);
+            existing.setSigning_selected_at(null);
+            existing.setSigning_confirmed_at(null);
+        } catch (Exception e) {
+            throw new RuntimeException("calendar 설정 직렬화 실패", e);
+        }
+        ConsultationRequest saved = repository.save(existing);
+        log.info("[자서 캘린더 설정] id={} firstSetup={}", id, isFirstSetup);
+
+        if (isFirstSetup && saved.getResident_phone() != null) {
+            String bank = saved.getVendor_name() != null ? saved.getVendor_name() : "은행";
+            webPushService.sendToPhone(
+                    saved.getResident_phone(),
+                    "📅 " + bank + " 자서 일정 도착",
+                    "가능한 날짜와 시간을 선택해주세요",
+                    "/my/consultations/" + saved.getId()
+            );
+        }
+        return saved;
+    }
+
+    /**
+     * 같은 은행의 다른 상담건 자서 예약 카운트 (더블부킹 표시용).
+     * 반환: { "YYYY-MM-DD": [ { time, customerName }, ... ] }
+     */
+    @GetMapping("/consultations/{id}/signing-calendar/bookings")
+    public Map<String, List<Map<String, String>>> getOtherBookings(@PathVariable UUID id) {
+        ConsultationRequest current = repository.findById(id).orElseThrow();
+        if (current.getVendor_name() == null) return Map.of();
+        List<ConsultationRequest> others = repository.findConfirmedSigningsByBank(current.getVendor_name(), id);
+        Map<String, List<Map<String, String>>> byDate = new LinkedHashMap<>();
+        for (ConsultationRequest r : others) {
+            if (r.getSigning_date() == null) continue;
+            String key = r.getSigning_date().toString();
+            Map<String, String> entry = new LinkedHashMap<>();
+            entry.put("time", r.getSigning_time() != null ? r.getSigning_time() : "");
+            entry.put("customer", r.getResident_name() != null ? r.getResident_name() : "");
+            byDate.computeIfAbsent(key, k -> new ArrayList<>()).add(entry);
+        }
+        return byDate;
+    }
+
+    /** [Legacy] 자서 일정 슬롯 제시 — 구 모델 호환 유지 */
     @PutMapping("/consultations/{id}/signing-slots")
     public ConsultationRequest setSigningSlots(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
         ConsultationRequest existing = repository.findById(id).orElseThrow();
@@ -423,9 +498,38 @@ public class BankConsultationController {
     }
 
     /**
-     * 자서 일정 확정 — 입주민이 선택한 슬롯을 상담사가 확정.
+     * [v2] 자서 일정 확정 — 입주민이 선택한 (date,time,location) 을 상담사가 확정.
      * 확정 시 signing_date / signing_time / signing_location 셋팅 + 입주민 푸시.
      */
+    @PostMapping("/consultations/{id}/confirm-signing-calendar")
+    public ConsultationRequest confirmSigningCalendar(@PathVariable UUID id) {
+        ConsultationRequest existing = repository.findById(id).orElseThrow();
+        if (existing.getSigning_selected_date() == null) {
+            throw new IllegalStateException("입주민이 아직 일정을 선택하지 않았습니다");
+        }
+        existing.setSigning_date(existing.getSigning_selected_date());
+        existing.setSigning_time(existing.getSigning_selected_time());
+        existing.setSigning_location(existing.getSigning_selected_location_str());
+        existing.setSigning_confirmed_at(OffsetDateTime.now());
+        ConsultationRequest saved = repository.save(existing);
+        log.info("[자서 캘린더 확정] id={} date={} time={} location={}", id,
+                saved.getSigning_date(), saved.getSigning_time(), saved.getSigning_location());
+
+        if (saved.getResident_phone() != null) {
+            String bank = saved.getVendor_name() != null ? saved.getVendor_name() : "은행";
+            String body = saved.getSigning_date() + (saved.getSigning_time() != null ? " " + saved.getSigning_time() : "")
+                    + (saved.getSigning_location() != null ? " · " + saved.getSigning_location() : "");
+            webPushService.sendToPhone(
+                    saved.getResident_phone(),
+                    "✅ " + bank + " 자서 예약 확정",
+                    body,
+                    "/my/consultations/" + saved.getId()
+            );
+        }
+        return saved;
+    }
+
+    /** [Legacy] 자서 일정 확정 — 구 슬롯 모델 호환 유지 */
     @PostMapping("/consultations/{id}/confirm-signing-slot")
     public ConsultationRequest confirmSigningSlot(@PathVariable UUID id) {
         ConsultationRequest existing = repository.findById(id).orElseThrow();

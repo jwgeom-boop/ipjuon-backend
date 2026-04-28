@@ -160,20 +160,38 @@ public class ConsultationRequest {
     @Column(name = "reported_middle_interest_at")
     private OffsetDateTime reported_middle_interest_at;
 
-    // ===== 자서 일정 슬롯 워크플로 (B2C 앱) =====
-    // 상담사가 사이트에서 가능한 슬롯을 JSON 으로 제시 (예: [{"date":"2026-05-12","time":"10:00","location":"부전동지점"}, ...])
-    @Column(name = "signing_offered_slots", columnDefinition = "text")
-    private String signing_offered_slots;
-    // 입주민이 선택한 슬롯의 인덱스 (offered_slots 배열의 0-based index)
-    @Column(name = "signing_selected_slot_index")
-    private Integer signing_selected_slot_index;
+    // ===== 자서 일정 캘린더 워크플로 (B2C 앱, v2 — opt-out 방식) =====
+    // 표시 기간 (없으면 오늘+3 ~ 오늘+30일 default)
+    @Column(name = "signing_window_start")
+    private LocalDate signing_window_start;
+    @Column(name = "signing_window_end")
+    private LocalDate signing_window_end;
+    // 상담사가 제외한 날짜 JSON 배열 (예: ["2026-05-12","2026-05-15"])
+    @Column(name = "signing_excluded_dates", columnDefinition = "text")
+    private String signing_excluded_dates;
+    // 가능 시간대 JSON 배열 (예: ["09:00","10:00",...])
+    @Column(name = "signing_available_times", columnDefinition = "text")
+    private String signing_available_times;
+    // 가능 장소 JSON 배열 (예: ["부전동지점 2층","본점 1층"])
+    @Column(name = "signing_available_locations", columnDefinition = "text")
+    private String signing_available_locations;
+    // 입주민이 선택한 일정 (확정 전 임시값)
+    @Column(name = "signing_selected_date")
+    private LocalDate signing_selected_date;
+    private String signing_selected_time;
+    private String signing_selected_location_str;
     @Column(name = "signing_selected_at")
     private OffsetDateTime signing_selected_at;
-    // 상담사가 최종 확정한 시각 (확정 시 signing_date / signing_time 도 함께 셋팅됨)
+    // 상담사가 최종 확정한 시각 (확정 시 signing_date / signing_time / signing_location 셋팅됨)
     @Column(name = "signing_confirmed_at")
     private OffsetDateTime signing_confirmed_at;
-    // 확정된 자서 장소 (offered_slots 의 location)
+    // 확정된 자서 장소
     private String signing_location;
+    // ===== Legacy (M3에서 사용했던 슬롯 모델 — 호환을 위해 유지하되 신규 흐름은 위 필드 사용) =====
+    @Column(name = "signing_offered_slots", columnDefinition = "text")
+    private String signing_offered_slots;
+    @Column(name = "signing_selected_slot_index")
+    private Integer signing_selected_slot_index;
 
     // Getters and Setters - 기본
     public UUID getId() { return id; }
@@ -388,11 +406,23 @@ public class ConsultationRequest {
     public OffsetDateTime getReported_middle_interest_at() { return reported_middle_interest_at; }
     public void setReported_middle_interest_at(OffsetDateTime v) { this.reported_middle_interest_at = v; }
 
-    // 자서 일정 슬롯
-    public String getSigning_offered_slots() { return signing_offered_slots; }
-    public void setSigning_offered_slots(String v) { this.signing_offered_slots = v; }
-    public Integer getSigning_selected_slot_index() { return signing_selected_slot_index; }
-    public void setSigning_selected_slot_index(Integer v) { this.signing_selected_slot_index = v; }
+    // 자서 일정 캘린더 (v2)
+    public LocalDate getSigning_window_start() { return signing_window_start; }
+    public void setSigning_window_start(LocalDate v) { this.signing_window_start = v; }
+    public LocalDate getSigning_window_end() { return signing_window_end; }
+    public void setSigning_window_end(LocalDate v) { this.signing_window_end = v; }
+    public String getSigning_excluded_dates() { return signing_excluded_dates; }
+    public void setSigning_excluded_dates(String v) { this.signing_excluded_dates = v; }
+    public String getSigning_available_times() { return signing_available_times; }
+    public void setSigning_available_times(String v) { this.signing_available_times = v; }
+    public String getSigning_available_locations() { return signing_available_locations; }
+    public void setSigning_available_locations(String v) { this.signing_available_locations = v; }
+    public LocalDate getSigning_selected_date() { return signing_selected_date; }
+    public void setSigning_selected_date(LocalDate v) { this.signing_selected_date = v; }
+    public String getSigning_selected_time() { return signing_selected_time; }
+    public void setSigning_selected_time(String v) { this.signing_selected_time = v; }
+    public String getSigning_selected_location_str() { return signing_selected_location_str; }
+    public void setSigning_selected_location_str(String v) { this.signing_selected_location_str = v; }
     @JsonProperty("signing_selected_at")
     public OffsetDateTime getSigning_selected_at() { return signing_selected_at; }
     public void setSigning_selected_at(OffsetDateTime v) { this.signing_selected_at = v; }
@@ -401,4 +431,10 @@ public class ConsultationRequest {
     public void setSigning_confirmed_at(OffsetDateTime v) { this.signing_confirmed_at = v; }
     public String getSigning_location() { return signing_location; }
     public void setSigning_location(String v) { this.signing_location = v; }
+
+    // Legacy
+    public String getSigning_offered_slots() { return signing_offered_slots; }
+    public void setSigning_offered_slots(String v) { this.signing_offered_slots = v; }
+    public Integer getSigning_selected_slot_index() { return signing_selected_slot_index; }
+    public void setSigning_selected_slot_index(Integer v) { this.signing_selected_slot_index = v; }
 }
