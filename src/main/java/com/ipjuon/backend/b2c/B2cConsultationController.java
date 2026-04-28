@@ -31,6 +31,12 @@ public class B2cConsultationController {
         this.repo = repo;
     }
 
+    /** 입주민 액션 발생 시 마지막 액션 시각·종류 기록 (상담사 알림함용) */
+    private static void markResidentAction(ConsultationRequest r, String type) {
+        r.setResident_last_action_at(OffsetDateTime.now());
+        r.setResident_last_action_type(type);
+    }
+
     /** 본인 상담건 목록 — 진행단계 우선 정렬 */
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> list(@RequestParam String phone) {
@@ -134,6 +140,7 @@ public class B2cConsultationController {
                 return ResponseEntity.status(409).body(Map.of("error", "가심사 결과 단계에서만 수용 가능합니다"));
             }
             r.setCustomer_accepted_at(OffsetDateTime.now());
+            markResidentAction(r, "accept");
             repo.save(r);
             log.info("[B2C] 가심사 수용 id={} phone={}", id, normalized);
             return ResponseEntity.ok(B2cConsultationDto.toDetail(r));
@@ -165,6 +172,7 @@ public class B2cConsultationController {
             r.setLoan_status("cancel_requested");
             r.setCanceled_reason(reason);
             r.setStage_changed_at(OffsetDateTime.now());
+            markResidentAction(r, "cancel");
             repo.save(r);
             log.info("[B2C] 취소 요청 id={} phone={} reason={}", id, normalized, reason);
             return ResponseEntity.ok(B2cConsultationDto.toDetail(r));
@@ -219,6 +227,7 @@ public class B2cConsultationController {
 
             r.setReported_middle_interest(amount);
             r.setReported_middle_interest_at(OffsetDateTime.now());
+            markResidentAction(r, "report_middle_interest");
             repo.save(r);
             log.info("[B2C] 중도금이자 보고 id={} amount={} phone={}", id, amount, normalized);
 
@@ -255,6 +264,7 @@ public class B2cConsultationController {
                 r.setSigning_selected_time(timeStr);
                 r.setSigning_selected_location_str(location);
                 r.setSigning_selected_at(OffsetDateTime.now());
+                markResidentAction(r, "signing_select");
             } catch (Exception e) {
                 return ResponseEntity.badRequest().body(Map.of("error", "날짜 형식 오류"));
             }
@@ -329,6 +339,7 @@ public class B2cConsultationController {
             }
             r.setResident_doc_checks(csv);
             r.setResident_doc_checks_at(OffsetDateTime.now());
+            markResidentAction(r, "doc_checks");
             repo.save(r);
             log.info("[B2C] 준비서류 체크 업데이트 id={} count={}", id, checks.size());
             return ResponseEntity.ok(B2cConsultationDto.toDetail(r));

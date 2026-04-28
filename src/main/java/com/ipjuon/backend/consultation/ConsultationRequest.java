@@ -166,6 +166,13 @@ public class ConsultationRequest {
     @Column(name = "resident_doc_checks_at")
     private OffsetDateTime resident_doc_checks_at;
 
+    // 입주민이 앱에서 액션한 가장 최근 시각 (수용/취소/일정선택/이자보고/체크리스트 변경 등)
+    // 상담사 사이트의 알림함 카운트 계산용 (lastSeen vs this 비교)
+    @Column(name = "resident_last_action_at")
+    private OffsetDateTime resident_last_action_at;
+    // 마지막 입주민 액션 종류 (notify / display 용)
+    private String resident_last_action_type;
+
     // ===== 자서 일정 캘린더 워크플로 (B2C 앱, v2 — opt-out 방식) =====
     // 표시 기간 (없으면 오늘+3 ~ 오늘+30일 default)
     @Column(name = "signing_window_start")
@@ -416,6 +423,11 @@ public class ConsultationRequest {
     @JsonProperty("resident_doc_checks_at")
     public OffsetDateTime getResident_doc_checks_at() { return resident_doc_checks_at; }
     public void setResident_doc_checks_at(OffsetDateTime v) { this.resident_doc_checks_at = v; }
+    @JsonProperty("resident_last_action_at")
+    public OffsetDateTime getResident_last_action_at() { return resident_last_action_at; }
+    public void setResident_last_action_at(OffsetDateTime v) { this.resident_last_action_at = v; }
+    public String getResident_last_action_type() { return resident_last_action_type; }
+    public void setResident_last_action_type(String v) { this.resident_last_action_type = v; }
 
     // 자서 일정 캘린더 (v2)
     public LocalDate getSigning_window_start() { return signing_window_start; }
