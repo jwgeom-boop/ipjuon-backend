@@ -28,4 +28,12 @@ public interface ConsultationRepository extends JpaRepository<ConsultationReques
     // 같은 은행에서 자서 확정된 다른 상담건들 (더블부킹 방지용)
     @Query("SELECT r FROM ConsultationRequest r WHERE r.vendor_name = :bankName AND r.signing_date IS NOT NULL AND r.signing_confirmed_at IS NOT NULL AND r.id <> :excludeId")
     List<ConsultationRequest> findConfirmedSigningsByBank(@Param("bankName") String bankName, @Param("excludeId") UUID excludeId);
+
+    // 자서일이 특정 날짜인 활성 상담건 (D-Day 리마인더용)
+    @Query("SELECT r FROM ConsultationRequest r WHERE r.signing_date = :date AND r.loan_status NOT IN ('cancel','cancel_requested','done')")
+    List<ConsultationRequest> findActiveBySigningDate(@Param("date") java.time.LocalDate date);
+
+    // 실행일이 특정 날짜인 활성 상담건
+    @Query("SELECT r FROM ConsultationRequest r WHERE r.execution_date = :date AND r.loan_status NOT IN ('cancel','cancel_requested','done')")
+    List<ConsultationRequest> findActiveByExecutionDate(@Param("date") java.time.LocalDate date);
 }

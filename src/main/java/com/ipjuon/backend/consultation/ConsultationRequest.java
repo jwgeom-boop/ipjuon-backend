@@ -178,6 +178,17 @@ public class ConsultationRequest {
     @Column(name = "b2c_messages", columnDefinition = "text")
     private String b2c_messages;
 
+    // D-Day 자동 리마인더 추적 — 어떤 자서일/실행일에 대해 D-3, D-1 푸시 발송했는지
+    // (재예약으로 일정 바뀌면 다시 발송됨)
+    @Column(name = "signing_d3_reminder_for")
+    private LocalDate signing_d3_reminder_for;
+    @Column(name = "signing_d1_reminder_for")
+    private LocalDate signing_d1_reminder_for;
+    @Column(name = "execution_d3_reminder_for")
+    private LocalDate execution_d3_reminder_for;
+    @Column(name = "execution_d1_reminder_for")
+    private LocalDate execution_d1_reminder_for;
+
     // ===== 자서 일정 캘린더 워크플로 (B2C 앱, v2 — opt-out 방식) =====
     // 표시 기간 (없으면 오늘+3 ~ 오늘+30일 default)
     @Column(name = "signing_window_start")
@@ -435,6 +446,14 @@ public class ConsultationRequest {
     public void setResident_last_action_type(String v) { this.resident_last_action_type = v; }
     public String getB2c_messages() { return b2c_messages; }
     public void setB2c_messages(String v) { this.b2c_messages = v; }
+    public LocalDate getSigning_d3_reminder_for() { return signing_d3_reminder_for; }
+    public void setSigning_d3_reminder_for(LocalDate v) { this.signing_d3_reminder_for = v; }
+    public LocalDate getSigning_d1_reminder_for() { return signing_d1_reminder_for; }
+    public void setSigning_d1_reminder_for(LocalDate v) { this.signing_d1_reminder_for = v; }
+    public LocalDate getExecution_d3_reminder_for() { return execution_d3_reminder_for; }
+    public void setExecution_d3_reminder_for(LocalDate v) { this.execution_d3_reminder_for = v; }
+    public LocalDate getExecution_d1_reminder_for() { return execution_d1_reminder_for; }
+    public void setExecution_d1_reminder_for(LocalDate v) { this.execution_d1_reminder_for = v; }
 
     // 자서 일정 캘린더 (v2)
     public LocalDate getSigning_window_start() { return signing_window_start; }

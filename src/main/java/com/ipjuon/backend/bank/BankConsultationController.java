@@ -1,6 +1,7 @@
 package com.ipjuon.backend.bank;
 
 import com.ipjuon.backend.b2c.MessagesHelper;
+import com.ipjuon.backend.b2c.ReminderService;
 import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.vendor.Vendor;
@@ -36,6 +37,7 @@ public class BankConsultationController {
     private final BankExcelExportService excelService;
     private final VendorRepository vendorRepository;
     private final WebPushService webPushService;
+    private final ReminderService reminderService;
 
     @Value("${complex.name}")
     private String complexName;
@@ -52,11 +54,19 @@ public class BankConsultationController {
     public BankConsultationController(ConsultationRepository repository,
                                        BankExcelExportService excelService,
                                        VendorRepository vendorRepository,
-                                       WebPushService webPushService) {
+                                       WebPushService webPushService,
+                                       ReminderService reminderService) {
         this.repository = repository;
         this.excelService = excelService;
         this.vendorRepository = vendorRepository;
         this.webPushService = webPushService;
+        this.reminderService = reminderService;
+    }
+
+    /** D-Day 리마인더 수동 트리거 (테스트·관리자용) */
+    @PostMapping("/reminders/run-now")
+    public Map<String, Integer> runReminders() {
+        return reminderService.sendDailyReminders();
     }
 
     /** loan_status 전환 시 입주민 앱으로 Web Push 발송 */
