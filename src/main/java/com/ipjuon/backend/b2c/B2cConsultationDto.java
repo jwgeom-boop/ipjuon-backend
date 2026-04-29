@@ -173,6 +173,7 @@ public class B2cConsultationDto {
         m.put("resident_doc_checks_at", r.getResident_doc_checks_at());
         m.put("resident_last_action_at", r.getResident_last_action_at());
         m.put("resident_last_action_type", r.getResident_last_action_type());
+        m.put("b2c_messages", r.getB2c_messages());
 
         // 입주일 (D-day 표시용)
         m.put("moving_in_date", r.getMoving_in_date());

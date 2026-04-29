@@ -346,6 +346,30 @@ public class B2cConsultationController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * 입주민이 상담사에게 메시지 전송 — b2c_messages JSON 배열에 append.
+     */
+    @PostMapping("/{id}/message")
+    @Transactional
+    public ResponseEntity<?> sendMessage(@PathVariable UUID id, @RequestBody Map<String, String> body) {
+        String normalized = normalizePhone(body.get("phone"));
+        String text = body.get("text");
+        if (normalized == null || text == null || text.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "phone, text 필수"));
+        }
+        return repo.findById(id).<ResponseEntity<?>>map(r -> {
+            if (!normalized.equals(normalizePhone(r.getResident_phone()))) {
+                return ResponseEntity.status(403).body(Map.of("error", "본인 상담건이 아닙니다"));
+            }
+            MessagesHelper.append(r, "RESIDENT", r.getResident_name(), text);
+            r.setResident_last_action_at(OffsetDateTime.now());
+            r.setResident_last_action_type("message");
+            repo.save(r);
+            log.info("[B2C] 입주민 메시지 id={} len={}", id, text.length());
+            return ResponseEntity.ok(B2cConsultationDto.toDetail(r));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     /** 전화번호 정규화 — 010-1234-5678 / 01012345678 / 010 1234 5678 모두 동일 처리 */
     private static String normalizePhone(String phone) {
         if (phone == null) return null;

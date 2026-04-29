@@ -1,5 +1,6 @@
 package com.ipjuon.backend.bank;
 
+import com.ipjuon.backend.b2c.MessagesHelper;
 import com.ipjuon.backend.consultation.ConsultationRequest;
 import com.ipjuon.backend.consultation.ConsultationRepository;
 import com.ipjuon.backend.vendor.Vendor;
@@ -460,6 +461,63 @@ public class BankConsultationController {
             byDate.computeIfAbsent(key, k -> new ArrayList<>()).add(entry);
         }
         return byDate;
+    }
+
+    /**
+     * 자서 후 누락 서류 → 입주민 앱 푸시 알림.
+     * Body: { missing_doc_names: ["주민등록 등본", "인감증명서", ...] }
+     * 다음 미팅에 지참하도록 안내.
+     */
+    @PostMapping("/consultations/{id}/notify-missing-docs")
+    public ResponseEntity<?> notifyMissingDocs(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        ConsultationRequest c = repository.findById(id).orElseThrow();
+        @SuppressWarnings("unchecked")
+        List<String> names = (List<String>) body.get("missing_doc_names");
+        if (names == null || names.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "missing_doc_names 필수"));
+        }
+        if (c.getResident_phone() == null) {
+            return ResponseEntity.status(409).body(Map.of("error", "입주민 연락처가 없습니다"));
+        }
+        String bank = c.getVendor_name() != null ? c.getVendor_name() : "은행";
+        String preview = names.size() <= 3
+                ? String.join(", ", names)
+                : names.subList(0, 3).stream().collect(Collectors.joining(", ")) + " 외 " + (names.size() - 3) + "건";
+        webPushService.sendToPhone(
+                c.getResident_phone(),
+                "📌 " + bank + " 누락 서류 안내",
+                preview + " — 다음 일정에 지참 부탁드립니다",
+                "/my/consultations/" + c.getId()
+        );
+        log.info("[누락서류 푸시] id={} count={}", id, names.size());
+        return ResponseEntity.ok(Map.of("ok", true, "notified", names.size()));
+    }
+
+    /**
+     * 상담사 → 입주민 메시지 (b2c_messages 에 append + 입주민 앱 푸시).
+     */
+    @PostMapping("/consultations/{id}/message")
+    public ConsultationRequest sendMessage(@PathVariable UUID id, @RequestBody Map<String, String> body) {
+        ConsultationRequest c = repository.findById(id).orElseThrow();
+        String text = body.get("text");
+        String byName = body.get("by");
+        if (text == null || text.isBlank()) {
+            throw new IllegalArgumentException("text 필수");
+        }
+        MessagesHelper.append(c, "CONSULTANT", byName != null ? byName : c.getManager(), text);
+        ConsultationRequest saved = repository.save(c);
+        log.info("[상담사 메시지] id={} by={} len={}", id, byName, text.length());
+        if (saved.getResident_phone() != null) {
+            String bank = saved.getVendor_name() != null ? saved.getVendor_name() : "은행";
+            String preview = text.length() > 50 ? text.substring(0, 50) + "..." : text;
+            webPushService.sendToPhone(
+                    saved.getResident_phone(),
+                    "💬 " + bank + " 상담사 메시지",
+                    preview,
+                    "/my/consultations/" + saved.getId()
+            );
+        }
+        return saved;
     }
 
     /** [Legacy] 자서 일정 슬롯 제시 — 구 모델 호환 유지 */

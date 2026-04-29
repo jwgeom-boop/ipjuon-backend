@@ -173,6 +173,11 @@ public class ConsultationRequest {
     // 마지막 입주민 액션 종류 (notify / display 용)
     private String resident_last_action_type;
 
+    // 입주민 ↔ 상담사 메시지 (JSON 배열, 시간순)
+    // 형식: [{"id":"uuid","from":"RESIDENT|CONSULTANT","by":"이름","text":"...","at":"ISO"}]
+    @Column(name = "b2c_messages", columnDefinition = "text")
+    private String b2c_messages;
+
     // ===== 자서 일정 캘린더 워크플로 (B2C 앱, v2 — opt-out 방식) =====
     // 표시 기간 (없으면 오늘+3 ~ 오늘+30일 default)
     @Column(name = "signing_window_start")
@@ -428,6 +433,8 @@ public class ConsultationRequest {
     public void setResident_last_action_at(OffsetDateTime v) { this.resident_last_action_at = v; }
     public String getResident_last_action_type() { return resident_last_action_type; }
     public void setResident_last_action_type(String v) { this.resident_last_action_type = v; }
+    public String getB2c_messages() { return b2c_messages; }
+    public void setB2c_messages(String v) { this.b2c_messages = v; }
 
     // 자서 일정 캘린더 (v2)
     public LocalDate getSigning_window_start() { return signing_window_start; }
