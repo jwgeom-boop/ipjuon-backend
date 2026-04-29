@@ -153,6 +153,17 @@ public class ConsultationRequest {
     @Column(name = "last_sms_sent_at")
     private OffsetDateTime last_sms_sent_at;
 
+    // ===== 대출신청서 추가 정보 (입주민 입력) =====
+    // 작년 소득 (예: 2025년 81,792,550)
+    @Column(name = "annual_income_y1")
+    private Long annual_income_y1;
+    // 재작년 소득 (예: 2024년 73,673,500)
+    @Column(name = "annual_income_y2")
+    private Long annual_income_y2;
+    // 대출신청서 마지막 제출 시각
+    @Column(name = "loan_application_at")
+    private OffsetDateTime loan_application_at;
+
     // ===== 입주민 보고값 (B2C 앱) =====
     // 중도금이자: 실행일 당일 입주민이 은행에서 확인 후 앱으로 보고 → 상담사가 확인하고 settle_middle_interest 확정
     @Column(name = "reported_middle_interest")
@@ -454,6 +465,13 @@ public class ConsultationRequest {
     public void setExecution_d3_reminder_for(LocalDate v) { this.execution_d3_reminder_for = v; }
     public LocalDate getExecution_d1_reminder_for() { return execution_d1_reminder_for; }
     public void setExecution_d1_reminder_for(LocalDate v) { this.execution_d1_reminder_for = v; }
+    public Long getAnnual_income_y1() { return annual_income_y1; }
+    public void setAnnual_income_y1(Long v) { this.annual_income_y1 = v; }
+    public Long getAnnual_income_y2() { return annual_income_y2; }
+    public void setAnnual_income_y2(Long v) { this.annual_income_y2 = v; }
+    @JsonProperty("loan_application_at")
+    public OffsetDateTime getLoan_application_at() { return loan_application_at; }
+    public void setLoan_application_at(OffsetDateTime v) { this.loan_application_at = v; }
 
     // 자서 일정 캘린더 (v2)
     public LocalDate getSigning_window_start() { return signing_window_start; }

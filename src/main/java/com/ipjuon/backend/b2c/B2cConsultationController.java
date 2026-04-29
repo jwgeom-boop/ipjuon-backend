@@ -347,6 +347,84 @@ public class B2cConsultationController {
     }
 
     /**
+     * 대출신청서 (가심사용) 작성/수정 — 입주민이 한 번 작성 → 모든 은행 공유.
+     * Body: {
+     *   phone, contractor, resident_no, joint_owner_name, joint_owner_rrn, joint_owner_tel,
+     *   desired_loan (Long), loan_period, deferment,
+     *   annual_income_y1 (Long), annual_income_y2 (Long),
+     *   existing_credit_loan (Long), existing_collateral_loan (Long),
+     *   notes, sale_price_amount (Long), desired_date, existing_homes
+     * }
+     *
+     * 동일 phone 의 모든 ConsultationRequest 에 동일하게 반영 (은행 8개 공유).
+     */
+    @PostMapping("/{id}/loan-application")
+    @Transactional
+    public ResponseEntity<?> submitLoanApplication(@PathVariable UUID id, @RequestBody Map<String, Object> body) {
+        String normalized = normalizePhone((String) body.get("phone"));
+        if (normalized == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "phone 필수"));
+        }
+        // 본인 검증 (id 가 본인 상담건인지)
+        ConsultationRequest target = repo.findById(id).orElse(null);
+        if (target == null) return ResponseEntity.notFound().build();
+        if (!normalized.equals(normalizePhone(target.getResident_phone()))) {
+            return ResponseEntity.status(403).body(Map.of("error", "본인 상담건이 아닙니다"));
+        }
+
+        // 같은 전화번호의 모든 활성 상담건에 동일 정보 반영 (8개 은행 공유)
+        List<ConsultationRequest> all = repo.findByResidentPhone(normalized);
+        OffsetDateTime now = OffsetDateTime.now();
+        int updated = 0;
+        for (ConsultationRequest r : all) {
+            // done/cancel 은 제외
+            String s = r.getLoan_status();
+            if ("done".equals(s) || "cancel".equals(s)) continue;
+            applyLoanApplication(r, body);
+            r.setLoan_application_at(now);
+            r.setResident_last_action_at(now);
+            r.setResident_last_action_type("loan_application");
+            repo.save(r);
+            updated++;
+        }
+        log.info("[B2C] 대출신청서 제출 phone={} updated={}", normalized, updated);
+        return ResponseEntity.ok(Map.of(
+                "ok", true,
+                "updated_count", updated,
+                "detail", B2cConsultationDto.toDetail(target)
+        ));
+    }
+
+    private static void applyLoanApplication(ConsultationRequest r, Map<String, Object> b) {
+        if (b.containsKey("contractor")) r.setContractor(asString(b.get("contractor")));
+        if (b.containsKey("resident_no")) r.setResident_no(asString(b.get("resident_no")));
+        if (b.containsKey("joint_owner_name")) r.setJoint_owner_name(asString(b.get("joint_owner_name")));
+        if (b.containsKey("joint_owner_rrn")) r.setJoint_owner_rrn(asString(b.get("joint_owner_rrn")));
+        if (b.containsKey("joint_owner_tel")) r.setJoint_owner_tel(asString(b.get("joint_owner_tel")));
+        if (b.containsKey("desired_loan")) r.setDesired_loan(asString(b.get("desired_loan")));
+        if (b.containsKey("loan_period")) r.setLoan_period(asString(b.get("loan_period")));
+        if (b.containsKey("deferment")) r.setDeferment(asString(b.get("deferment")));
+        if (b.containsKey("annual_income_y1")) r.setAnnual_income_y1(asLong(b.get("annual_income_y1")));
+        if (b.containsKey("annual_income_y2")) r.setAnnual_income_y2(asLong(b.get("annual_income_y2")));
+        if (b.containsKey("existing_credit_loan")) r.setExisting_credit_loan(asLong(b.get("existing_credit_loan")));
+        if (b.containsKey("existing_collateral_loan")) r.setExisting_collateral_loan(asLong(b.get("existing_collateral_loan")));
+        if (b.containsKey("notes")) r.setNotes(asString(b.get("notes")));
+        if (b.containsKey("sale_price_amount")) r.setSale_price_amount(asLong(b.get("sale_price_amount")));
+        if (b.containsKey("desired_date")) r.setDesired_date(asString(b.get("desired_date")));
+        if (b.containsKey("existing_homes")) r.setExisting_homes(asString(b.get("existing_homes")));
+    }
+
+    private static String asString(Object o) {
+        if (o == null) return null;
+        String s = o.toString().trim();
+        return s.isEmpty() ? null : s;
+    }
+    private static Long asLong(Object o) {
+        if (o == null) return null;
+        try { return Long.parseLong(o.toString().replaceAll("\\D", "")); } catch (Exception e) { return null; }
+    }
+
+    /**
      * 입주민이 상담사에게 메시지 전송 — b2c_messages JSON 배열에 append.
      */
     @PostMapping("/{id}/message")

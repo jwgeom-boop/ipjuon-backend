@@ -15,6 +15,16 @@ import java.util.UUID;
  */
 public class B2cConsultationDto {
 
+    /** 주민번호 마스킹: 820103-1****** */
+    private static String maskRrn(String rrn) {
+        if (rrn == null) return null;
+        String digits = rrn.replaceAll("\\D", "");
+        if (digits.length() < 7) return rrn; // 형식 이상하면 그대로
+        String front = digits.substring(0, 6);
+        String genderDigit = digits.length() >= 7 ? digits.substring(6, 7) : "";
+        return front + "-" + genderDigit + "******";
+    }
+
     /**
      * 백엔드 loan_status (apply/consulting/reviewing/result/executing/done/cancel) 를
      * 입주민이 이해하는 5단계로 매핑.
@@ -177,6 +187,27 @@ public class B2cConsultationDto {
 
         // 입주일 (D-day 표시용)
         m.put("moving_in_date", r.getMoving_in_date());
+
+        // 대출신청서 정보 (입주민이 입력한 가심사 정보)
+        m.put("contractor", r.getContractor());
+        // 주민번호 마스킹 (820103-1****)
+        String rno = r.getResident_no();
+        m.put("resident_no_masked", maskRrn(rno));
+        m.put("joint_owner_name", r.getJoint_owner_name());
+        m.put("joint_owner_rrn_masked", maskRrn(r.getJoint_owner_rrn()));
+        m.put("joint_owner_tel", r.getJoint_owner_tel());
+        m.put("desired_loan", r.getDesired_loan());
+        m.put("loan_period", r.getLoan_period());
+        m.put("deferment", r.getDeferment());
+        m.put("annual_income_y1", r.getAnnual_income_y1());
+        m.put("annual_income_y2", r.getAnnual_income_y2());
+        m.put("existing_credit_loan", r.getExisting_credit_loan());
+        m.put("existing_collateral_loan", r.getExisting_collateral_loan());
+        m.put("notes", r.getNotes());
+        m.put("sale_price_amount", r.getSale_price_amount());
+        m.put("desired_date", r.getDesired_date());
+        m.put("existing_homes", r.getExisting_homes());
+        m.put("loan_application_at", r.getLoan_application_at());
 
         if ("cancel".equals(stage)) {
             m.put("canceled_reason", r.getCanceled_reason());
