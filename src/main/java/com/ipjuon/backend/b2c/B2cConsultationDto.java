@@ -77,6 +77,7 @@ public class B2cConsultationDto {
 
         m.put("stage_changed_at", r.getStage_changed_at());
         m.put("created_at", r.getCreatedAt());
+        m.put("loan_application_at", r.getLoan_application_at());
 
         if ("cancel".equals(stage)) {
             m.put("canceled_reason", r.getCanceled_reason());
